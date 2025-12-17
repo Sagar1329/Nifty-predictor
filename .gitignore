@@ -1,0 +1,65 @@
+# =========================
+# Python / Virtual Env
+# =========================
+venv/
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# =========================
+# Python build artifacts
+# =========================
+build/
+dist/
+*.egg-info/
+
+# =========================
+# Jupyter / IPython
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# OS / Editor junk
+# =========================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# ML Artifacts (IMPORTANT)
+# =========================
+ml/models/*.pkl
+ml/models/*.joblib
+
+# =========================
+# Generated datasets (optional but recommended)
+# =========================
+ml/features/features.csv
+ml/training/X.csv
+ml/training/y.csv
+ml/training/labels.csv
+
+# =========================
+# Raw downloaded data (optional)
+# =========================
+ml/data/*.csv
+
+# =========================
+# Frontend (future React)
+# =========================
+node_modules/
+dist/
+build/
+
+# =========================
+# Backend (future FastAPI)
+# =========================
+*.sqlite3
