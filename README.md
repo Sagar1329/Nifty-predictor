@@ -327,3 +327,274 @@ Time-series ML
 Financial data pipelines
 
 End-to-end ML system design
+
+
+
+
+
+18/12/2025
+
+📊 Model Insights & Feature Importance
+
+This section documents what the trained models actually learned, based on feature importance analysis from the Random Forest 15-minute trend model.
+
+Why This Matters
+
+Accuracy alone can be misleading in financial ML.
+Understanding which signals drive predictions helps validate that the model is learning market behavior, not artifacts or data leakage.
+
+
+🔍 Feature Importance Summary (15-Minute Trend Model)
+
+Feature importance was extracted from a trained Random Forest classifier predicting the 15-minute market trend (Down / Sideways / Up).
+
+Grouped Feature Importance
+
+| Feature Type       | Importance |
+| ------------------ | ---------- |
+| RSI (14)           | ~52%       |
+| Rolling Volatility | ~19%       |
+| Log Returns        | ~9%        |
+| Candle Body        | ~8%        |
+| High–Low Range     | ~7%        |
+| EMA (9)            | ~3%        |
+| EMA (21)           | ~3%        |
+
+
+🧠 Interpretation
+
+RSI dominates the model’s decisions, indicating that the model primarily learns momentum exhaustion and continuation patterns rather than absolute price levels.
+
+Volatility is the second most important factor, providing regime context (trending vs consolidating markets).
+
+Recent candle behavior matters most, with higher importance assigned to features from the most recent candles (t-1 to t-3).
+
+EMA indicators contribute minimally, suggesting that lagging trend indicators add little incremental information once momentum and volatility are captured.
+
+
+
+📌 Key Takeaways
+
+The model behaves as a momentum-regime classifier, not a price predictor.
+
+Predictions are driven by how momentum and volatility evolve over time, not by static price levels.
+
+This aligns well with the intended use case: short-term trend classification rather than precise forecasting.
+
+
+⚠️ Important Note
+
+This feature importance reflects behavior on the current dataset and time window.
+Future work includes:
+
+Walk-forward validation across different market regimes
+
+Testing robustness over additional time periods
+
+
+
+🧩 How This Informs System Design
+
+Based on these insights:
+
+The 15-minute trend model is best used as:
+
+A regime filter (trend vs consolidation)
+
+A probabilistic directional bias signal
+
+It is not suitable for standalone trading decisions
+
+It is ideal as an input to a larger decision or risk-management system
+
+
+
+
+#18/12/2025
+
+
+
+## 🧠 Backend-Ready Inference Pipeline
+
+This project includes a **production-style inference pipeline** that converts raw intraday OHLC data into a **15-minute trend prediction** using a trained Random Forest model.
+
+The inference layer is designed to be:
+- Stateless
+- Deterministic
+- Reusable
+- Easy to wrap with FastAPI or any backend framework
+
+---
+
+### 🎯 Purpose of the Inference Pipeline
+
+Given the **latest 5-minute candles**, the pipeline:
+
+1. Rebuilds features **exactly as done during training**
+2. Loads the trained model from disk
+3. Predicts the **15-minute market trend**
+4. Returns **class probabilities**, not just a label
+
+This ensures:
+- No feature mismatch between training and inference
+- No data leakage
+- No hidden logic
+
+---
+
+### 📂 Inference Module Structure
+
+```
+
+ml/
+└── inference/
+├── **init**.py
+├── predictor.py
+└── test_predictor.py
+
+````
+
+---
+
+### 🏗️ Core Inference Class
+
+The main entry point is the `TrendPredictor` class:
+
+```python
+from ml.inference.predictor import TrendPredictor
+````
+
+This class:
+
+* Loads the trained **15-minute trend Random Forest model**
+* Exposes a single public method: `predict()`
+
+---
+
+### 📥 Input Contract
+
+The `predict()` method expects a **pandas DataFrame** containing recent candles with the following columns:
+
+```
+datetime, open, high, low, close
+```
+
+Requirements:
+
+* Candles must be **5-minute interval**
+* At least **~60 candles** should be provided to compute indicators safely
+* Data must be **chronologically ordered**
+
+Example:
+
+```python
+import pandas as pd
+
+df = pd.read_csv("ml/data/nifty_5m_clean.csv")
+recent_candles = df.tail(60)
+```
+
+---
+
+### 📤 Output Contract
+
+The predictor returns a dictionary with:
+
+* A **human-readable trend label**
+* **Class probabilities** for all regimes
+
+Example output:
+
+```json
+{
+  "prediction": "DOWN",
+  "probabilities": {
+    "DOWN": 0.42,
+    "SIDEWAYS": 0.29,
+    "UP": 0.29
+  }
+}
+```
+
+#### Trend Encoding
+
+```
+DOWN      → Bearish bias
+SIDEWAYS → Consolidation / range
+UP        → Bullish bias
+```
+
+Probabilities are intended to be used for:
+
+* Confidence thresholds
+* Risk filtering
+* Decision support (not direct trading)
+
+---
+
+### ⚙️ Feature Consistency Guarantee
+
+The inference pipeline **reuses the exact same logic** as training:
+
+* Same indicators:
+
+  * Log returns
+  * Candle body
+  * High–low range
+  * EMA (9, 21)
+  * RSI (14)
+  * Rolling volatility (10)
+* Same lookback window (**10 candles**)
+* Same feature ordering (**70 features total**)
+
+This eliminates:
+
+* Training–inference skew
+* Silent bugs
+* Feature drift at inference time
+
+---
+
+### 🧪 Local Testing
+
+A lightweight test script is included:
+
+```bash
+python -m ml.inference.test_predictor
+```
+
+This:
+
+* Loads recent candles from disk
+* Runs the inference pipeline
+* Prints prediction + probabilities
+
+Successful execution confirms:
+
+* Model loading works
+* Feature generation is correct
+* Inference is end-to-end functional
+
+---
+
+### 🧩 Design Philosophy
+
+* The model is treated as a **probabilistic regime classifier**
+* It is **not** a price predictor
+* It is intended to be:
+
+  * A backend service
+  * A signal component
+  * An input to higher-level decision systems
+
+---
+
+### 🚀 Next Steps
+
+With the inference pipeline in place, the system is ready for:
+
+* FastAPI integration
+* Live data ingestion
+* Frontend visualization
+* Walk-forward validation
+
