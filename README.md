@@ -598,3 +598,152 @@ With the inference pipeline in place, the system is ready for:
 * Frontend visualization
 * Walk-forward validation
 
+
+
+## 19/12/2025
+## 🎯 Confidence Thresholds & Abstain Logic
+
+Financial markets are inherently noisy and uncertain.  
+To avoid overconfident or misleading predictions, this project implements an explicit **confidence and abstention layer** on top of raw model probabilities.
+
+The model is allowed to say **“I am uncertain”** when conditions are ambiguous.
+
+---
+
+### 🧠 Why Abstain Logic Is Necessary
+
+The ML model always produces probabilities for each class:
+
+```
+DOWN | SIDEWAYS | UP
+```
+
+However, forcing a decision in low-confidence situations can lead to:
+- False signals
+- Overinterpretation
+- Poor user trust
+
+Instead, this system follows a **decision-support philosophy**, not a trading-signal philosophy.
+
+---
+
+### 🚦 Decision Rules (Final)
+
+The system applies **two rules** to every prediction:
+
+#### 1️⃣ Minimum Confidence Rule
+The highest class probability must be at least:
+
+```
+max_probability ≥ 0.55
+```
+
+If not, the system returns:
+```
+signal = UNCERTAIN
+```
+
+---
+
+#### 2️⃣ Separation (Margin) Rule
+The top prediction must clearly exceed the second-best prediction:
+
+```
+(top_probability − second_probability) ≥ 0.10
+```
+
+If not, the system returns:
+```
+signal = UNCERTAIN
+```
+
+---
+
+### 🟡 Abstain Label
+
+When either rule fails, the system explicitly returns:
+
+```
+signal = UNCERTAIN
+```
+
+This is a **valid and expected outcome**, not an error.
+
+---
+
+### 📊 Confidence Levels
+
+In addition to the signal, the API exposes a **confidence level** derived from the maximum probability:
+
+| Max Probability | Confidence Level |
+|-----------------|------------------|
+| `< 0.55` | LOW |
+| `0.55 – 0.65` | MEDIUM |
+| `≥ 0.65` | HIGH |
+
+This allows the frontend to:
+- Adjust visual emphasis
+- Filter weak signals
+- Communicate uncertainty clearly
+
+---
+
+### 📤 API Response Example (Low Confidence)
+
+```json
+{
+  "signal": "UNCERTAIN",
+  "confidence_level": "LOW",
+  "prediction": "DOWN",
+  "probabilities": {
+    "DOWN": 0.426,
+    "SIDEWAYS": 0.285,
+    "UP": 0.289
+  }
+}
+```
+
+---
+
+### 📤 API Response Example (High Confidence)
+
+```json
+{
+  "signal": "UP",
+  "confidence_level": "HIGH",
+  "prediction": "UP",
+  "probabilities": {
+    "DOWN": 0.12,
+    "SIDEWAYS": 0.21,
+    "UP": 0.67
+  }
+}
+```
+
+---
+
+### 🧩 Design Philosophy
+
+- The ML model produces **probabilities**
+- A separate decision layer determines **whether to act**
+- Uncertainty is treated as a **first-class outcome**
+- The system prioritizes **robustness and interpretability** over raw accuracy
+
+This approach aligns with real-world ML systems used in finance and risk-sensitive domains.
+
+---
+
+### 🚀 Impact on Frontend Design
+
+Frontend applications should:
+- Use `signal` as the primary state indicator
+- Treat `UNCERTAIN` as a neutral or greyed-out state
+- Use `confidence_level` to control emphasis, not logic
+- Display probabilities for transparency, not decision-making
+
+---
+
+### ⚠️ Disclaimer
+
+This project is for **educational and experimental purposes only**.  
+It does **not** constitute trading advice or a production trading system.

@@ -39,6 +39,40 @@ class TrendPredictor:
 
         rs = avg_gain / avg_loss
         return 100 - (100 / (1 + rs))
+    
+
+    @staticmethod
+    def _apply_confidence_rules(probs: dict) -> dict:
+        # Sort probabilities
+        sorted_probs = sorted(
+            probs.items(), key=lambda x: x[1], reverse=True
+        )
+
+        top_label, top_prob = sorted_probs[0]
+        second_label, second_prob = sorted_probs[1]
+
+        # Confidence thresholds
+        MIN_CONFIDENCE = 0.55
+        MIN_MARGIN = 0.10
+
+        if top_prob < MIN_CONFIDENCE or (top_prob - second_prob) < MIN_MARGIN:
+            signal = "UNCERTAIN"
+        else:
+            signal = top_label
+
+        # Confidence bands (for UX)
+        if top_prob >= 0.65:
+            confidence_level = "HIGH"
+        elif top_prob >= 0.55:
+            confidence_level = "MEDIUM"
+        else:
+            confidence_level = "LOW"
+
+        return {
+            "signal": signal,
+            "confidence_level": confidence_level
+        }
+
 
     # ----------------------------
     # Feature builder (IDENTICAL LOGIC)
@@ -71,14 +105,12 @@ class TrendPredictor:
     # ----------------------------
     # Public inference API
     # ----------------------------
-    def predict(self, candles: pd.DataFrame) -> dict:
-        """
-        candles must contain columns:
-        datetime, open, high, low, close
-        """
 
+    def predict(self, candles: pd.DataFrame) -> dict:
+  
         X = self._build_features(candles)
 
+        # Model inference
         pred_class = int(self.model.predict(X)[0])
         probs = self.model.predict_proba(X)[0]
 
@@ -88,11 +120,47 @@ class TrendPredictor:
             2: "UP"
         }
 
-        return {
-            "prediction": label_map[pred_class],
-            "probabilities": {
-                "DOWN": float(probs[0]),
-                "SIDEWAYS": float(probs[1]),
-                "UP": float(probs[2]),
-            }
+        probs_dict = {
+            "DOWN": float(probs[0]),
+            "SIDEWAYS": float(probs[1]),
+            "UP": float(probs[2]),
         }
+
+        # ----------------------------
+        # Confidence & Abstain Logic
+        # ----------------------------
+        sorted_probs = sorted(
+            probs_dict.items(), key=lambda x: x[1], reverse=True
+        )
+
+        top_label, top_prob = sorted_probs[0]
+        second_label, second_prob = sorted_probs[1]
+
+        MIN_CONFIDENCE = 0.55
+        MIN_MARGIN = 0.10
+
+        if top_prob < MIN_CONFIDENCE or (top_prob - second_prob) < MIN_MARGIN:
+            signal = "UNCERTAIN"
+        else:
+            signal = top_label
+
+        # Confidence levels for UX
+        if top_prob >= 0.65:
+            confidence_level = "HIGH"
+        elif top_prob >= 0.55:
+            confidence_level = "MEDIUM"
+        else:
+            confidence_level = "LOW"
+
+        # ----------------------------
+        # Final response
+        # ----------------------------
+        print("Comming here")
+        return {
+            "signal": signal,
+            "confidence_level": confidence_level,
+            "prediction": label_map[pred_class],  # raw model output (transparent)
+            "probabilities": probs_dict
+        }
+
+    
