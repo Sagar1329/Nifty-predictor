@@ -5,7 +5,7 @@ function App() {
 
   return (
     <>
-      <h1>Nifty Predictor</h1>
+      <h1>Nifty Predictor Frontend</h1>
     </>
   )
 }
