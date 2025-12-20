@@ -28,7 +28,7 @@ function App() {
   const fetchPrediction = () => {
     setLoading(true);
     setTimeout(() => {
-      setData(predictionMockResponse);
+      setData(predictionMockResponse as PredictionResponse);
       setLoading(false);
     }, 800);
   };
