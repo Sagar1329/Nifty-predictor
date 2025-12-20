@@ -747,3 +747,116 @@ Frontend applications should:
 
 This project is for **educational and experimental purposes only**.  
 It does **not** constitute trading advice or a production trading system.
+
+
+
+
+
+
+
+## 20/12/2025
+🧠 Backend Replay Engine & API Observability
+
+After implementing confidence thresholds and abstain (UNCERTAIN) logic, the project was extended into a fully observable backend system using replay-driven execution and HTTP APIs.
+
+🔁 Replay Execution Engine
+
+A replay engine was built to simulate live market conditions using historical intraday data:
+
+Advances one candle at a time
+
+Maintains a rolling window of recent candles
+
+Runs ML inference only when sufficient data is available
+
+Applies confidence and abstain logic on every step
+
+Handles session gaps and day boundaries naturally
+
+This enables deterministic testing and debugging without requiring live market data.
+
+🗂 In-Memory State Management
+
+Two thread-safe state stores were introduced:
+
+CurrentStateStore
+
+Holds the latest market signal
+
+Always represents the most recent inference output
+
+SignalHistoryStore
+
+Maintains a rolling history of recent signals
+
+Used for analysis, visualization, and frontend consumption
+
+State is intentionally kept in memory to avoid premature persistence decisions.
+
+🌐 FastAPI Observability Layer
+
+The backend exposes read-only APIs for inspecting system state:
+
+GET /state
+
+Returns the latest market signal with confidence and probabilities
+
+GET /history?limit=N
+
+Returns recent signal history in time order
+
+These endpoints allow frontend integration and debugging without coupling UI logic to ML logic.
+
+🎮 Replay Control Plane
+
+Replay execution is controlled entirely via API:
+
+POST /replay/start — start replay simulation
+
+POST /replay/stop — stop replay execution
+
+POST /replay/reset — reset replay cursor and clear state
+
+Replay runs in a background thread and shares state with the API through a unified global state module.
+
+🧱 Architectural Principles Followed
+
+Replay-first design before live data
+
+Clear separation of concerns:
+
+Data ingestion
+
+Inference
+
+State storage
+
+API exposure
+
+No frontend or persistence assumptions
+
+Deterministic, testable backend behavior
+
+Confidence-aware outputs instead of forced predictions
+
+✅ Current System Capabilities
+
+Simulated live market execution
+
+Confidence-aware ML signals
+
+HTTP-accessible backend state
+
+Safe replay controls
+
+Frontend-ready API contracts
+
+⏭ Next Planned Step
+
+Design and implement Yahoo Finance live polling provider
+(with full testability even when markets are closed)
+
+
+
+
+

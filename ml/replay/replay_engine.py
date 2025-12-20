@@ -14,6 +14,8 @@ class ReplayEngine:
     def __init__(
         self,
         csv_path: str,
+        current_state_store,
+        signal_history_store,
         window_size: int = 60,
         tick_seconds: float = 1.0,
     ):
@@ -24,8 +26,8 @@ class ReplayEngine:
         self.buffer = []
         self.predictor = TrendPredictor()
 
-        self.current_state = CurrentStateStore()
-        self.history = SignalHistoryStore()
+        self.current_state = current_state_store
+        self.history = signal_history_store
 
         self.running = False
 
