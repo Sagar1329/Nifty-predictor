@@ -747,3 +747,215 @@ Frontend applications should:
 
 This project is for **educational and experimental purposes only**.  
 It does **not** constitute trading advice or a production trading system.
+
+
+
+
+
+
+
+## 20/12/2025
+🧠 Backend Replay Engine & API Observability
+
+After implementing confidence thresholds and abstain (UNCERTAIN) logic, the project was extended into a fully observable backend system using replay-driven execution and HTTP APIs.
+
+🔁 Replay Execution Engine
+
+A replay engine was built to simulate live market conditions using historical intraday data:
+
+Advances one candle at a time
+
+Maintains a rolling window of recent candles
+
+Runs ML inference only when sufficient data is available
+
+Applies confidence and abstain logic on every step
+
+Handles session gaps and day boundaries naturally
+
+This enables deterministic testing and debugging without requiring live market data.
+
+🗂 In-Memory State Management
+
+Two thread-safe state stores were introduced:
+
+CurrentStateStore
+
+Holds the latest market signal
+
+Always represents the most recent inference output
+
+SignalHistoryStore
+
+Maintains a rolling history of recent signals
+
+Used for analysis, visualization, and frontend consumption
+
+State is intentionally kept in memory to avoid premature persistence decisions.
+
+🌐 FastAPI Observability Layer
+
+The backend exposes read-only APIs for inspecting system state:
+
+GET /state
+
+Returns the latest market signal with confidence and probabilities
+
+GET /history?limit=N
+
+Returns recent signal history in time order
+
+These endpoints allow frontend integration and debugging without coupling UI logic to ML logic.
+
+🎮 Replay Control Plane
+
+Replay execution is controlled entirely via API:
+
+POST /replay/start — start replay simulation
+
+POST /replay/stop — stop replay execution
+
+POST /replay/reset — reset replay cursor and clear state
+
+Replay runs in a background thread and shares state with the API through a unified global state module.
+
+🧱 Architectural Principles Followed
+
+Replay-first design before live data
+
+Clear separation of concerns:
+
+Data ingestion
+
+Inference
+
+State storage
+
+API exposure
+
+No frontend or persistence assumptions
+
+Deterministic, testable backend behavior
+
+Confidence-aware outputs instead of forced predictions
+
+✅ Current System Capabilities
+
+Simulated live market execution
+
+Confidence-aware ML signals
+
+HTTP-accessible backend state
+
+Safe replay controls
+
+Frontend-ready API contracts
+
+⏭ Next Planned Step
+
+Design and implement Yahoo Finance live polling provider
+(with full testability even when markets are closed)
+
+
+
+
+## 21/12/2025
+📡 Yahoo Live Polling (Design & Initial Implementation)
+
+This project supports a polling-based live market mode using Yahoo Finance intraday data. Live polling is designed to be safe, deterministic, and testable even when markets are closed.
+
+🔹 Live Polling Philosophy
+
+Yahoo Finance does not provide real-time streaming
+
+The system polls for completed 5-minute candles
+
+Inference is triggered only when a new candle is detected
+
+Replay mode and live mode share the same inference and state pipeline
+
+🔹 YahooLiveDataProvider
+
+A dedicated data provider was introduced to serve as the live data source.
+
+Responsibilities
+
+Fetch recent intraday 5-minute candles for NIFTY (^NSEI)
+
+Normalize data into a consistent OHLC format:
+
+datetime, open, high, low, close
+
+
+Always return multiple recent candles to prevent missed data
+
+Remain stateless and inference-agnostic
+
+Key Design Choice
+The provider intentionally fetches more than the latest candle to:
+
+Handle Yahoo data delays
+
+Enable robust new-candle detection
+
+Allow testing when markets are closed
+
+🔹 Market Closed Behavior
+
+When markets are closed:
+
+Yahoo returns the last available candle
+
+No new timestamps are detected
+
+No inference is triggered
+
+Backend state remains unchanged
+
+This is expected and correct behavior.
+
+🔹 Runtime & Environment
+
+Project now runs on Python 3.12
+
+Required due to modern dependencies (yfinance, typing support)
+
+Virtual environment is created once and activated per session
+
+🔹 Current Status
+
+Completed:
+
+Replay-driven ML backend
+
+Confidence thresholds and abstain logic
+
+FastAPI observability (/state, /history)
+
+Replay controls via API
+
+Yahoo live data provider (Phase 1)
+
+Planned:
+
+LivePollingEngine with 60-second polling
+
+New candle detection logic
+
+Live mode start/stop controls
+
+Replay ↔ Live mode switching
+
+🧠 Summary (For Future You)
+
+At this point, the backend cleanly supports:
+
+Deterministic replay
+
+Observable inference state
+
+Controlled execution
+
+A ready-to-use live data source
+
+Live polling can be fully implemented and tested without relying on market hours.
