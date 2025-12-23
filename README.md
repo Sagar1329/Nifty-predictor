@@ -959,3 +959,20 @@ Controlled execution
 A ready-to-use live data source
 
 Live polling can be fully implemented and tested without relying on market hours.
+
+
+## SETUP
+ # 1. Create venv (once)
+python -m venv venv
+venv\Scripts\activate
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Generate models (REQUIRED)
+python ml/training/train_trend_models.py
+python ml/training/train_random_forest.py
+
+# 4. Start backend
+python -m ml.run_backend
+

@@ -39,9 +39,8 @@ def train_trend_models():
         pipeline = Pipeline([
             ("scaler", StandardScaler()),
             ("model", LogisticRegression(
-                max_iter=3000,
-                solver="lbfgs",
-                multi_class="auto"
+                max_iter=1000,
+                solver="lbfgs"
             ))
         ])
 

@@ -6,6 +6,7 @@ import pandas as pd
 from ml.inference.predictor import TrendPredictor
 from ml.state.global_state import current_state_store, signal_history_store
 from ml.replay.replay_controller import ReplayController
+from ml.live.live_controller import LiveController
 
 
 app = FastAPI(
@@ -21,6 +22,7 @@ replay_controller = ReplayController(
 
 # Load model once at startup
 predictor = TrendPredictor()
+live_controller = LiveController(poll_seconds=60)
 
 # ----------------------------
 # Request / Response Schemas
@@ -102,3 +104,12 @@ def stop_replay():
 @app.post("/replay/reset")
 def reset_replay():
     return replay_controller.reset()
+
+@app.post("/live/start")
+def start_live():
+    return live_controller.start()
+
+
+@app.post("/live/stop")
+def stop_live():
+    return live_controller.stop()
