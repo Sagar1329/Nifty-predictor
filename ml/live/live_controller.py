@@ -4,7 +4,8 @@ from typing import Optional
 from ml.live.live_polling_engine import LivePollingEngine
 from ml.data.yahoo_live_provider import YahooLiveDataProvider
 from ml.inference.predictor import TrendPredictor
-from ml.state.runtime_mode import RuntimeMode, current_mode
+from ml.state.runtime_mode import RuntimeMode
+import ml.state.runtime_mode as runtime_mode
 
 
 class LiveController:
@@ -15,16 +16,18 @@ class LiveController:
         self._lock = threading.Lock()
 
     def start(self):
-        global current_mode
-
         with self._lock:
-            if current_mode == RuntimeMode.LIVE:
-                return {"status": "already_running", "mode": current_mode}
+            if runtime_mode.current_mode == RuntimeMode.LIVE:
+                return {
+                    "status": "already_running",
+                    "mode": runtime_mode.current_mode,
+                }
 
-            if current_mode == RuntimeMode.REPLAY:
+            if runtime_mode.current_mode == RuntimeMode.REPLAY:
                 return {
                     "status": "conflict",
-                    "message": "Replay is running. Stop replay first."
+                    "message": "Replay is running. Stop replay first.",
+                    "mode": runtime_mode.current_mode,
                 }
 
             provider = YahooLiveDataProvider()
@@ -42,19 +45,30 @@ class LiveController:
             )
             self._thread.start()
 
-            current_mode = RuntimeMode.LIVE
-            return {"status": "started", "mode": current_mode}
+            # Set runtime mode
+            runtime_mode.current_mode = RuntimeMode.LIVE
+
+            return {
+                "status": "started",
+                "mode": runtime_mode.current_mode,
+            }
 
     def stop(self):
-        global current_mode
-
         with self._lock:
-            if current_mode != RuntimeMode.LIVE:
-                return {"status": "not_running", "mode": current_mode}
+            if runtime_mode.current_mode != RuntimeMode.LIVE:
+                return {
+                    "status": "not_running",
+                    "mode": runtime_mode.current_mode,
+                }
 
             self._engine.stop()
             self._engine = None
             self._thread = None
 
-            current_mode = RuntimeMode.NONE
-            return {"status": "stopped", "mode": current_mode}
+            # Reset runtime mode
+            runtime_mode.current_mode = RuntimeMode.NONE
+
+            return {
+                "status": "stopped",
+                "mode": runtime_mode.current_mode,
+            }

@@ -3,7 +3,8 @@ from typing import Optional
 
 from ml.replay.replay_engine import ReplayEngine
 from ml.state.global_state import current_state_store, signal_history_store
-from ml.state.runtime_mode import RuntimeMode, current_mode
+from ml.state.runtime_mode import RuntimeMode
+import ml.state.runtime_mode as runtime_mode
 
 
 class ReplayController:
@@ -15,22 +16,19 @@ class ReplayController:
         self._lock = threading.Lock()
 
     def start(self):
-        global current_mode
 
         with self._lock:
-            # ❌ Block replay if live mode is running
-            if current_mode == RuntimeMode.LIVE:
+            if runtime_mode.current_mode == RuntimeMode.LIVE:
                 return {
                     "status": "conflict",
                     "message": "Live mode is running. Stop live first.",
-                    "mode": current_mode,
+                    "mode": runtime_mode.current_mode,
                 }
 
-            # Already running replay
             if self._thread and self._thread.is_alive():
                 return {
                     "status": "already_running",
-                    "mode": current_mode,
+                    "mode": runtime_mode.current_mode,
                 }
 
             self._engine = ReplayEngine(
@@ -47,21 +45,20 @@ class ReplayController:
             self._thread.start()
 
             # ✅ Set runtime mode
-            current_mode = RuntimeMode.REPLAY
+            runtime_mode.current_mode = RuntimeMode.REPLAY
 
             return {
                 "status": "started",
-                "mode": current_mode,
+                "mode": runtime_mode.current_mode,
             }
 
     def stop(self):
-        global current_mode
 
         with self._lock:
             if not self._engine:
                 return {
                     "status": "not_running",
-                    "mode": current_mode,
+                    "mode": runtime_mode.current_mode,
                 }
 
             self._engine.running = False
@@ -69,15 +66,14 @@ class ReplayController:
             self._thread = None
 
             # ✅ Reset runtime mode
-            current_mode = RuntimeMode.NONE
+            runtime_mode.current_mode = RuntimeMode.NONE
 
             return {
                 "status": "stopped",
-                "mode": current_mode,
+                "mode": runtime_mode.current_mode,
             }
 
     def reset(self):
-        global current_mode
 
         with self._lock:
             # Stop if running
@@ -91,10 +87,9 @@ class ReplayController:
             self._engine = None
             self._thread = None
 
-            # ✅ Reset runtime mode
-            current_mode = RuntimeMode.NONE
+            runtime_mode.current_mode = RuntimeMode.NONE
 
             return {
                 "status": "reset",
-                "mode": current_mode,
+                "mode": runtime_mode.current_mode,
             }
