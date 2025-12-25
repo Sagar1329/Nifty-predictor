@@ -976,3 +976,114 @@ python ml/training/train_random_forest.py
 # 4. Start backend
 python -m ml.run_backend
 
+
+## 25/12/2025
+
+
+Live Yahoo Polling (Hardened)
+
+The backend supports a Live mode that polls Yahoo Finance intraday data for NIFTY (^NSEI) and produces real-time trend signals.
+
+Live mode is designed to be explicit, deterministic, and safe, even when markets are closed or data is unavailable.
+
+Live State Guarantees
+
+When Live mode is running:
+
+/state is never empty
+
+The system always reports what it knows
+
+No silent failures occur
+
+Frontend does not need to guess system status
+
+Live State Phases
+
+The /state endpoint may return the following phases while in live mode:
+
+warming_up
+{
+  "status": "live",
+  "phase": "warming_up",
+  "message": "Live mode started. Waiting for first candle.",
+  "last_candle_time": null
+}
+
+
+Live polling has started but no data has been processed yet.
+
+no_data
+{
+  "status": "live",
+  "phase": "no_data",
+  "message": "No data returned from Yahoo.",
+  "last_candle_time": null
+}
+
+
+Yahoo Finance did not return usable intraday data (common when markets are closed).
+
+market_closed
+{
+  "status": "live",
+  "phase": "market_closed",
+  "message": "Market is closed. Waiting for new candles.",
+  "last_candle_time": "YYYY-MM-DD HH:MM"
+}
+
+
+Yahoo returned data, but the latest candle timestamp did not advance.
+
+Prediction State (Normal Operation)
+{
+  "status": "live",
+  "timestamp": "YYYY-MM-DD HH:MM:SS",
+  "signal": "UP | DOWN | UNCERTAIN",
+  "confidence_level": "LOW | MEDIUM | HIGH",
+  "prediction": "UP | DOWN | SIDEWAYS",
+  "probabilities": { ... }
+}
+
+
+A new candle was detected and inference was successfully performed.
+
+inference_error
+{
+  "status": "live",
+  "phase": "inference_error",
+  "message": "Inference failed for latest candle",
+  "last_candle_time": "YYYY-MM-DD HH:MM"
+}
+
+
+An inference error occurred; the engine continues running safely.
+
+Live Stop
+{
+  "status": "stopped",
+  "message": "Live mode stopped"
+}
+
+
+Live polling has been stopped and no stale live state remains.
+
+Design Principles
+
+Live polling never silently spins
+
+Market-closed behavior is explicit
+
+Yahoo provider failures are isolated
+
+Backend state is frontend-safe
+
+Replay and Live modes remain mutually exclusive
+
+This design ensures predictable behavior across market hours and external data conditions.
+
+🧠 Phase Status
+
+✅ Live Yahoo Polling Hardened
+✅ Runtime state semantics finalized
+✅ Safe for frontend integration

@@ -5,6 +5,8 @@ from ml.live.live_polling_engine import LivePollingEngine
 from ml.data.yahoo_live_provider import YahooLiveDataProvider
 from ml.inference.predictor import TrendPredictor
 from ml.state.runtime_mode import RuntimeMode
+from ml.state.global_state import current_state_store
+
 import ml.state.runtime_mode as runtime_mode
 
 
@@ -14,6 +16,8 @@ class LiveController:
         self._engine: Optional[LivePollingEngine] = None
         self._thread: Optional[threading.Thread] = None
         self._lock = threading.Lock()
+
+
 
     def start(self):
         with self._lock:
@@ -38,6 +42,12 @@ class LiveController:
                 predictor=predictor,
                 poll_seconds=self.poll_seconds,
             )
+            current_state_store.update({
+                "status": "live",
+                "phase": "warming_up",
+                "message": "Live mode started. Waiting for first candle.",
+                "last_candle_time": None
+            })
 
             self._thread = threading.Thread(
                 target=self._engine.start,
@@ -71,4 +81,7 @@ class LiveController:
             return {
                 "status": "stopped",
                 "mode": runtime_mode.current_mode,
+                  "message": "Live mode stopped"
+
             }
+
