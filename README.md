@@ -1087,3 +1087,27 @@ This design ensures predictable behavior across market hours and external data c
 ✅ Live Yahoo Polling Hardened
 ✅ Runtime state semantics finalized
 ✅ Safe for frontend integration
+
+
+## 26-12-2025
+git commit description 
+- Normalized Yahoo live candle timestamps to IST
+- Fixed false market_closed / waiting states due to UTC mismatch
+- Ensured new candles are detected and processed before status updates
+- Confirmed delayed predictions due to buffer warm-up are expected
+- Added explicit logging for live candle processing and inference
+- Clarified live state semantics without forcing early predictions
+
+Live Mode – Expected Behavior
+
+  Live predictions are generated only after the buffer reaches the required window size (default: 60 candles).
+
+  During initial startup or early market hours, the system may remain in:
+
+  waiting_for_next_candle
+
+  This is expected behavior, not a failure.
+
+  Yahoo live candles are normalized to IST before processing.
+
+  Prediction latency of 30–90 seconds after candle close is normal due to data provider delays.

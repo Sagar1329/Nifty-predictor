@@ -205,7 +205,7 @@ class LivePollingEngine:
 
                 if market_open:
                     # Do NOT overwrite an existing prediction
-                    if self.prediction_emitted_for_timestamp != self.last_seen_timestamp:
+                    if self.prediction_emitted_for_timestamp is None:
                         current_state_store.update({
                             "status": "live",
                             "phase": "waiting_for_next_candle",
