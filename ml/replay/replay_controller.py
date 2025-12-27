@@ -3,6 +3,8 @@ from typing import Optional
 
 from ml.replay.replay_engine import ReplayEngine
 from ml.state.global_state import current_state_store, signal_history_store
+from ml.state.runtime_mode import RuntimeMode
+import ml.state.runtime_mode as runtime_mode
 
 
 class ReplayController:
@@ -14,9 +16,20 @@ class ReplayController:
         self._lock = threading.Lock()
 
     def start(self):
+
         with self._lock:
+            if runtime_mode.current_mode == RuntimeMode.LIVE:
+                return {
+                    "status": "conflict",
+                    "message": "Live mode is running. Stop live first.",
+                    "mode": runtime_mode.current_mode,
+                }
+
             if self._thread and self._thread.is_alive():
-                return {"status": "already_running"}
+                return {
+                    "status": "already_running",
+                    "mode": runtime_mode.current_mode,
+                }
 
             self._engine = ReplayEngine(
                 csv_path=self.csv_path,
@@ -31,27 +44,52 @@ class ReplayController:
             )
             self._thread.start()
 
-            return {"status": "started"}
+            # ✅ Set runtime mode
+            runtime_mode.current_mode = RuntimeMode.REPLAY
+
+            return {
+                "status": "started",
+                "mode": runtime_mode.current_mode,
+            }
 
     def stop(self):
+
         with self._lock:
             if not self._engine:
-                return {"status": "not_running"}
+                return {
+                    "status": "not_running",
+                    "mode": runtime_mode.current_mode,
+                }
 
             self._engine.running = False
-            return {"status": "stopped"}
+            self._engine = None
+            self._thread = None
+
+            # ✅ Reset runtime mode
+            runtime_mode.current_mode = RuntimeMode.NONE
+
+            return {
+                "status": "stopped",
+                "mode": runtime_mode.current_mode,
+            }
 
     def reset(self):
+
         with self._lock:
             # Stop if running
             if self._engine:
                 self._engine.running = False
 
-            # Clear state
+            # Clear state stores
             current_state_store.update(None)
             signal_history_store.get_all().clear()
 
             self._engine = None
             self._thread = None
 
-            return {"status": "reset"}
+            runtime_mode.current_mode = RuntimeMode.NONE
+
+            return {
+                "status": "reset",
+                "mode": runtime_mode.current_mode,
+            }

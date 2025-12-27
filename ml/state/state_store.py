@@ -19,6 +19,24 @@ class CurrentStateStore:
     def get(self) -> Optional[Dict]:
         with self._lock:
             return self._state
+        
+
+    def has_prediction(self) -> bool:
+        """
+        Returns True if the current state represents
+        a prediction emitted by the model.
+        """
+        
+        with self._lock:
+            print("Are we coming here")
+            if not self._state:
+                return False
+
+            return (
+                "signal" in self._state
+                or "prediction" in self._state
+                or "probabilities" in self._state
+            )
 
 
 class SignalHistoryStore:

@@ -959,3 +959,155 @@ Controlled execution
 A ready-to-use live data source
 
 Live polling can be fully implemented and tested without relying on market hours.
+
+
+## SETUP
+ # 1. Create venv (once)
+python -m venv venv
+venv\Scripts\activate
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Generate models (REQUIRED)
+python ml/training/train_trend_models.py
+python ml/training/train_random_forest.py
+
+# 4. Start backend
+python -m ml.run_backend
+
+
+## 25/12/2025
+
+
+Live Yahoo Polling (Hardened)
+
+The backend supports a Live mode that polls Yahoo Finance intraday data for NIFTY (^NSEI) and produces real-time trend signals.
+
+Live mode is designed to be explicit, deterministic, and safe, even when markets are closed or data is unavailable.
+
+Live State Guarantees
+
+When Live mode is running:
+
+/state is never empty
+
+The system always reports what it knows
+
+No silent failures occur
+
+Frontend does not need to guess system status
+
+Live State Phases
+
+The /state endpoint may return the following phases while in live mode:
+
+warming_up
+{
+  "status": "live",
+  "phase": "warming_up",
+  "message": "Live mode started. Waiting for first candle.",
+  "last_candle_time": null
+}
+
+
+Live polling has started but no data has been processed yet.
+
+no_data
+{
+  "status": "live",
+  "phase": "no_data",
+  "message": "No data returned from Yahoo.",
+  "last_candle_time": null
+}
+
+
+Yahoo Finance did not return usable intraday data (common when markets are closed).
+
+market_closed
+{
+  "status": "live",
+  "phase": "market_closed",
+  "message": "Market is closed. Waiting for new candles.",
+  "last_candle_time": "YYYY-MM-DD HH:MM"
+}
+
+
+Yahoo returned data, but the latest candle timestamp did not advance.
+
+Prediction State (Normal Operation)
+{
+  "status": "live",
+  "timestamp": "YYYY-MM-DD HH:MM:SS",
+  "signal": "UP | DOWN | UNCERTAIN",
+  "confidence_level": "LOW | MEDIUM | HIGH",
+  "prediction": "UP | DOWN | SIDEWAYS",
+  "probabilities": { ... }
+}
+
+
+A new candle was detected and inference was successfully performed.
+
+inference_error
+{
+  "status": "live",
+  "phase": "inference_error",
+  "message": "Inference failed for latest candle",
+  "last_candle_time": "YYYY-MM-DD HH:MM"
+}
+
+
+An inference error occurred; the engine continues running safely.
+
+Live Stop
+{
+  "status": "stopped",
+  "message": "Live mode stopped"
+}
+
+
+Live polling has been stopped and no stale live state remains.
+
+Design Principles
+
+Live polling never silently spins
+
+Market-closed behavior is explicit
+
+Yahoo provider failures are isolated
+
+Backend state is frontend-safe
+
+Replay and Live modes remain mutually exclusive
+
+This design ensures predictable behavior across market hours and external data conditions.
+
+🧠 Phase Status
+
+✅ Live Yahoo Polling Hardened
+✅ Runtime state semantics finalized
+✅ Safe for frontend integration
+
+
+## 26-12-2025
+git commit description 
+- Normalized Yahoo live candle timestamps to IST
+- Fixed false market_closed / waiting states due to UTC mismatch
+- Ensured new candles are detected and processed before status updates
+- Confirmed delayed predictions due to buffer warm-up are expected
+- Added explicit logging for live candle processing and inference
+- Clarified live state semantics without forcing early predictions
+
+Live Mode – Expected Behavior
+
+  Live predictions are generated only after the buffer reaches the required window size (default: 60 candles).
+
+  During initial startup or early market hours, the system may remain in:
+
+  waiting_for_next_candle
+
+  This is expected behavior, not a failure.
+
+  Yahoo live candles are normalized to IST before processing.
+
+  Prediction latency of 30–90 seconds after candle close is normal due to data provider delays.
