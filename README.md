@@ -1203,7 +1203,7 @@ This thresholding logic is used both during training and evaluation.
 
  - Realistic intraday evaluation
 
-- **Summary**
+## Summary
 
  - Prediction time: current 5-minute candle close
 
