@@ -4,6 +4,8 @@ import pandas as pd
 from ml.inference.predictor import TrendPredictor
 from ml.data.replay_provider import ReplayDataProvider
 from ml.state.state_store import CurrentStateStore, SignalHistoryStore
+from pathlib import Path
+from ml.replay.replay_writer import ReplayPredictionWriter
 
 
 class ReplayEngine:
@@ -28,6 +30,9 @@ class ReplayEngine:
 
         self.current_state = current_state_store
         self.history = signal_history_store
+        self.prediction_writer = ReplayPredictionWriter(
+                                    Path("data/replay_predictions.csv")
+                                )
 
         self.running = False
 
@@ -56,6 +61,9 @@ class ReplayEngine:
 
                 self.current_state.update(state)
                 self.history.append(state)
+
+                self.prediction_writer.write(state)
+
 
                 print(state)
 
