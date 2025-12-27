@@ -1111,3 +1111,108 @@ Live Mode – Expected Behavior
   Yahoo live candles are normalized to IST before processing.
 
   Prediction latency of 30–90 seconds after candle close is normal due to data provider delays.
+
+
+## 27-12-2025
+
+- **Prediction Horizon & Semantics**
+
+This project predicts directional market movement over a fixed future horizon, not individual candle behavior or exact prices.
+
+- **Candle Resolution**
+
+ - All data is based on 5-minute candles
+
+ - Features are constructed from the last 10 candles (~50 minutes)
+
+- **What Does a Prediction Mean?**
+
+For every prediction made at time T (a 5-minute candle close):
+
+The model predicts the net directional movement over the next 15 minutes, i.e. from T → T + 15 minutes.
+
+This is implemented by comparing:
+
+ - Close price at time T
+
+ - Close price at time T + 15 minutes (3 × 5-minute candles ahead)
+
+- **Target Classes**
+
+The prediction target is a 3-class trend label:
+
+ - UP
+  Price increases by more than +0.05% over the next 15 minutes
+
+ - DOWN
+  Price decreases by more than −0.05% over the next 15 minutes
+
+ - SIDEWAYS
+  Price change stays within ±0.05% (noise zone)
+
+This thresholding logic is used both during training and evaluation.
+
+- **Rolling Predictions (Important)**
+
+  Predictions are generated every 5 minutes, each with its own independent horizon:
+
+  Prediction Time (T)	          Evaluated Against
+  11:00	                          11:15 close
+  11:05	                          11:20 close
+  11:10	                          11:25 close
+
+  There is no fixed global window like “11:15–11:30”.
+
+  Each prediction answers:
+
+  “Where will price be 15 minutes from now relative to the current close?”
+
+- **What the Model Does NOT Predict**
+
+ - Exact future price
+
+ - Single candle direction
+
+ - Intra-candle high/low
+
+ - Trade execution signals
+
+ - The model is designed as a directional bias signal, suitable for:
+
+ - Filtering trades
+
+ - Aggregation with other signals
+
+ - Decision support systems
+
+- **Why Evaluation Uses 5-Minute Candles**
+
+ - Although the horizon is 15 minutes:
+
+ - The dataset resolution is 5 minutes
+
+ - A 15-minute horizon equals 3 future candles
+
+ - Ground truth is derived directly from historical price movement
+
+ - This ensures:
+
+ - No data leakage
+
+ - Exact alignment with training logic
+
+ - Realistic intraday evaluation
+
+- **Summary**
+
+ - Prediction time: current 5-minute candle close
+
+ - Prediction horizon: next 15 minutes
+
+ - Evaluation: close(T + 15m) vs close(T)
+
+ - Labels: UP / DOWN / SIDEWAYS
+
+ - Predictions are rolling and overlapping
+
+ - This design mirrors how real intraday trend models are built and evaluated.
