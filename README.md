@@ -1216,3 +1216,7 @@ This thresholding logic is used both during training and evaluation.
  - Predictions are rolling and overlapping
 
  - This design mirrors how real intraday trend models are built and evaluated.
+
+
+## 29/12/2025
+initial replay-based evaluation shows no reliable directional edge. Further model iteration required before production use.

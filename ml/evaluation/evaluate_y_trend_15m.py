@@ -170,6 +170,28 @@ def build_evaluation_dataset(
     return df
 
 
+def add_confusion_buckets(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Adds TP / FP / TN / FN bucket column.
+    Assumes:
+    - predicted ∈ {UP, DOWN}
+    - actual ∈ {UP, DOWN}
+    """
+    df = df.copy()
+
+    def classify(row):
+        if row["predicted"] == "UP" and row["actual"] == "UP":
+            return "TP"
+        if row["predicted"] == "UP" and row["actual"] == "DOWN":
+            return "FP"
+        if row["predicted"] == "DOWN" and row["actual"] == "DOWN":
+            return "TN"
+        if row["predicted"] == "DOWN" and row["actual"] == "UP":
+            return "FN"
+        return None  # should never happen
+
+    df["bucket"] = df.apply(classify, axis=1)
+    return df
 
 # ----------------------------
 # Metrics (NOT IMPLEMENTED YET)
@@ -297,6 +319,13 @@ if __name__ == "__main__":
     candles = load_candles(candles_path)
 
     eval_df = build_evaluation_dataset(preds, candles)
+    eval_df = add_confusion_buckets(eval_df)
+
+    assert set(eval_df["bucket"].unique()) == {"TP", "FP", "TN", "FN"}
+    assert len(eval_df) == eval_df["bucket"].value_counts().sum()
+
+    print("\nBucket counts:")
+    print(eval_df["bucket"].value_counts())
 
     print("Evaluation dataset preview:")
     print(eval_df.head())
