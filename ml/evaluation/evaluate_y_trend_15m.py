@@ -7,7 +7,14 @@ Phase A: Dataset construction ONLY
 from typing import Optional
 import pandas as pd
 from pathlib import Path
-
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    confusion_matrix
+)
+import pandas as pd
 # ----------------------------
 # Configuration
 # ----------------------------
@@ -151,7 +158,46 @@ def build_evaluation_dataset(
 # ----------------------------
 
 def compute_metrics(df: pd.DataFrame) -> dict:
-    raise NotImplementedError
+    """
+    Compute baseline classification metrics for 15-minute trend prediction.
+
+    Expected df columns:
+    - actual
+    - predicted
+    """
+
+    y_true = df["actual"]
+    y_pred = df["predicted"]
+
+    labels = ["DOWN", "SIDEWAYS", "UP"]
+
+    metrics = {
+        "accuracy": accuracy_score(y_true, y_pred),
+
+        "precision_macro": precision_score(
+            y_true, y_pred, labels=labels, average="macro", zero_division=0
+        ),
+
+        "recall_macro": recall_score(
+            y_true, y_pred, labels=labels, average="macro", zero_division=0
+        ),
+
+        "f1_macro": f1_score(
+            y_true, y_pred, labels=labels, average="macro", zero_division=0
+        ),
+    }
+
+    cm = confusion_matrix(
+        y_true, y_pred, labels=labels
+    )
+
+    metrics["confusion_matrix"] = pd.DataFrame(
+        cm,
+        index=[f"actual_{l}" for l in labels],
+        columns=[f"pred_{l}" for l in labels],
+    )
+
+    return metrics
 
 
 def compute_metrics_by_confidence(df: pd.DataFrame) -> dict:
@@ -162,7 +208,15 @@ def run_evaluation(
     predictions_path: Path,
     candles_path: Path,
 ):
-    raise NotImplementedError
+    metrics = compute_metrics(eval_df)
+
+    print("\nOverall Metrics:")
+    for k, v in metrics.items():
+        if k != "confusion_matrix":
+            print(f"{k}: {v:.4f}")
+
+    print("\nConfusion Matrix:")
+    print(metrics["confusion_matrix"])
 
 
 # ----------------------------
@@ -182,3 +236,5 @@ if __name__ == "__main__":
     print(eval_df.head())
     print("\nCounts:")
     print(eval_df["actual"].value_counts())
+
+    run_evaluation(predictions_path, candles_path)
