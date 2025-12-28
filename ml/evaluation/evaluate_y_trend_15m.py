@@ -201,8 +201,40 @@ def compute_metrics(df: pd.DataFrame) -> dict:
 
 
 def compute_metrics_by_confidence(df: pd.DataFrame) -> dict:
-    raise NotImplementedError
+    """
+    Compute metrics separately for each confidence level.
+    """
+    results = {}
 
+    for level in ["HIGH", "MEDIUM", "LOW"]:
+        subset = df[df["confidence_level"] == level]
+
+        if subset.empty:
+            results[level] = {"note": "no samples"}
+            continue
+
+        y_true = subset["actual"]
+        y_pred = subset["predicted"]
+
+        results[level] = {
+            "count": len(subset),
+            "accuracy": accuracy_score(y_true, y_pred),
+            "precision_macro": precision_score(
+                y_true, y_pred, average="macro", zero_division=0
+            ),
+            "recall_macro": recall_score(
+                y_true, y_pred, average="macro", zero_division=0
+            ),
+            "f1_macro": f1_score(
+                y_true, y_pred, average="macro", zero_division=0
+            ),
+            "confusion_matrix": confusion_matrix(
+                y_true, y_pred,
+                labels=["DOWN", "SIDEWAYS", "UP"]
+            ),
+        }
+
+    return results
 
 def run_evaluation(
     predictions_path: Path,
@@ -217,6 +249,22 @@ def run_evaluation(
 
     print("\nConfusion Matrix:")
     print(metrics["confusion_matrix"])
+
+    print("\n=== Metrics by Confidence Level ===")
+    confidence_metrics = compute_metrics_by_confidence(eval_df)
+
+    for level, metrics in confidence_metrics.items():
+        print(f"\n[{level}]")
+        for k, v in metrics.items():
+            if k == "confusion_matrix":
+                print("confusion_matrix:")
+                print(pd.DataFrame(
+                    v,
+                    index=["actual_DOWN", "actual_SIDEWAYS", "actual_UP"],
+                    columns=["pred_DOWN", "pred_SIDEWAYS", "pred_UP"]
+                ))
+            else:
+                print(f"{k}: {v}")
 
 
 # ----------------------------
