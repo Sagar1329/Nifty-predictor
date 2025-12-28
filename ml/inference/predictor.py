@@ -29,7 +29,7 @@ class TrendPredictor:
     # Indicator helpers
     # ----------------------------
     @staticmethod
-    def _compute_rsi(series, period=14):
+    def _compute_rsi(series: pd.Series, period: int = 14) -> pd.Series:
         delta = series.diff()
         gain = delta.clip(lower=0)
         loss = -delta.clip(upper=0)
@@ -39,43 +39,9 @@ class TrendPredictor:
 
         rs = avg_gain / avg_loss
         return 100 - (100 / (1 + rs))
-    
-
-    @staticmethod
-    def _apply_confidence_rules(probs: dict) -> dict:
-        # Sort probabilities
-        sorted_probs = sorted(
-            probs.items(), key=lambda x: x[1], reverse=True
-        )
-
-        top_label, top_prob = sorted_probs[0]
-        second_label, second_prob = sorted_probs[1]
-
-        # Confidence thresholds
-        MIN_CONFIDENCE = 0.55
-        MIN_MARGIN = 0.10
-
-        if top_prob < MIN_CONFIDENCE or (top_prob - second_prob) < MIN_MARGIN:
-            signal = "UNCERTAIN"
-        else:
-            signal = top_label
-
-        # Confidence bands (for UX)
-        if top_prob >= 0.65:
-            confidence_level = "HIGH"
-        elif top_prob >= 0.55:
-            confidence_level = "MEDIUM"
-        else:
-            confidence_level = "LOW"
-
-        return {
-            "signal": signal,
-            "confidence_level": confidence_level
-        }
-
 
     # ----------------------------
-    # Feature builder (IDENTICAL LOGIC)
+    # Feature builder (MUST MATCH TRAINING)
     # ----------------------------
     def _build_features(self, df: pd.DataFrame) -> np.ndarray:
         if len(df) < LOOKBACK + 20:
@@ -96,18 +62,16 @@ class TrendPredictor:
 
         df = df.dropna()
 
-        # Take last LOOKBACK candles
+        # Last LOOKBACK candles
         window = df.iloc[-LOOKBACK:][FEATURE_NAMES]
 
-        # Flatten (must match training)
+        # Flatten (same shape as training)
         return window.values.flatten().reshape(1, -1)
 
     # ----------------------------
     # Public inference API
     # ----------------------------
-
     def predict(self, candles: pd.DataFrame) -> dict:
-  
         X = self._build_features(candles)
 
         # Model inference
@@ -127,7 +91,7 @@ class TrendPredictor:
         }
 
         # ----------------------------
-        # Confidence & Abstain Logic
+        # Confidence logic (MARGIN-BASED)
         # ----------------------------
         sorted_probs = sorted(
             probs_dict.items(), key=lambda x: x[1], reverse=True
@@ -136,18 +100,15 @@ class TrendPredictor:
         top_label, top_prob = sorted_probs[0]
         second_label, second_prob = sorted_probs[1]
 
-        MIN_CONFIDENCE = 0.55
-        MIN_MARGIN = 0.10
+        margin = top_prob - second_prob
 
-        if top_prob < MIN_CONFIDENCE or (top_prob - second_prob) < MIN_MARGIN:
-            signal = "UNCERTAIN"
-        else:
-            signal = top_label
+        # Signal is always model argmax (no abstain for evaluation)
+        signal = top_label
 
-        # Confidence levels for UX
-        if top_prob >= 0.65:
+        # Confidence bands (semantic, not probability magnitude)
+        if margin >= 0.35:
             confidence_level = "HIGH"
-        elif top_prob >= 0.55:
+        elif margin >= 0.20:
             confidence_level = "MEDIUM"
         else:
             confidence_level = "LOW"
@@ -155,12 +116,9 @@ class TrendPredictor:
         # ----------------------------
         # Final response
         # ----------------------------
-        print("Comming here")
         return {
             "signal": signal,
             "confidence_level": confidence_level,
-            "prediction": label_map[pred_class],  # raw model output (transparent)
+            "prediction": label_map[pred_class],  # raw model output
             "probabilities": probs_dict
         }
-
-    

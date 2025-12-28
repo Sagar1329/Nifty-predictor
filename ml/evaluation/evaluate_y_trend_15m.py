@@ -136,13 +136,28 @@ def build_evaluation_dataset(
     for _, row in predictions.iterrows():
         ts = row["timestamp"]
 
+        # Compute actual future trend
         actual = compute_actual_trend(candles, ts)
         if actual is None:
-            continue  # drop rows without future truth
+            continue
+
+        predicted = row["prediction"]
+
+        # ----------------------------
+        # FILTERING LOGIC (CRITICAL)
+        # ----------------------------
+
+        # Drop SIDEWAYS from ground truth
+        if actual not in {"UP", "DOWN"}:
+            continue
+
+        # Drop abstained predictions
+        if predicted not in {"UP", "DOWN"}:
+            continue
 
         rows.append({
             "timestamp": ts,
-            "predicted": row["prediction"],
+            "predicted": predicted,
             "actual": actual,
             "confidence_level": row["confidence_level"],
             "p_up": row["p_up"],
@@ -150,7 +165,10 @@ def build_evaluation_dataset(
             "p_down": row["p_down"],
         })
 
-    return pd.DataFrame(rows)
+    df = pd.DataFrame(rows)
+
+    return df
+
 
 
 # ----------------------------
