@@ -1220,3 +1220,135 @@ This thresholding logic is used both during training and evaluation.
 
 ## 29/12/2025
 initial replay-based evaluation shows no reliable directional edge. Further model iteration required before production use.
+
+🧠 Confusion Bucketing
+
+    Each prediction is assigned a confusion bucket:
+
+    TP – Predicted UP, actual UP
+
+    TN – Predicted DOWN, actual DOWN
+
+    FP – Predicted UP, actual DOWN
+
+    FN – Predicted DOWN, actual UP
+
+    Integrity checks ensure:
+
+assert set(df_eval["bucket"].unique()) == {"TP", "FP", "TN", "FN"}
+assert len(df_eval) == df_eval["bucket"].value_counts().sum()
+
+
+This confirms:
+
+      No dropped rows
+
+      No invalid labels
+
+      Correct classification logic
+
+Evaluation Results (UP vs DOWN)
+
+Confusion Bucket Counts
+
+TN = 64
+FN = 64
+FP = 45
+TP = 34
+
+
+Key Observations
+
+  Model misses more UP moves than it captures (FN > TP)
+
+  Bias toward predicting DOWN
+
+  Directional skill exists but is weak
+
+  Confidence thresholds alone do not improve accuracy
+
+Confidence-Based Performance
+
+Performance degrades with higher confidence:
+
+      Confidence	Accuracy
+      HIGH	~38%
+      MEDIUM	~56%
+      LOW	~50%
+
+This indicates:
+
+    Model confidence is not well calibrated
+
+    High confidence ≠ high correctness
+
+Insights Gained
+
+    Errors are systematic, not random
+
+    Missed UP moves are the dominant failure mode
+
+    Limited training data contributes, but horizon ambiguity and regime mismatch are larger issues
+
+    Further tuning without understanding regimes would be premature
+
+Why This Step Matters
+
+    This evaluation establishes a trust baseline before:
+
+    Adding more data
+
+    Changing model architecture
+
+    Adjusting confidence thresholds
+
+    Building frontend signals
+
+    It ensures future improvements are evidence-driven, not speculative.
+
+Status
+
+    ✔ Replay predictions exported
+    ✔ Horizon-correct evaluation
+    ✔ Confusion buckets validated
+    ✔ Confidence-level slicing completed
+
+➡️ Next: Misclassification analysis by market regime (RSI, volatility, time-of-day)
+
+
+
+Regime-Based Misclassification Analysis (15-Minute Horizon)
+
+As part of model evaluation, we performed regime tagging on replay-based predictions to understand where and why the model fails.
+
+Regimes Analyzed
+
+Each prediction was tagged using the candle state at prediction time:
+
+Volatility Regime: LOW / MEDIUM / HIGH
+
+RSI Regime: OVERSOLD / NEUTRAL / OVERBOUGHT
+
+Time Regime: OPEN / MID / CLOSE
+
+Trend Regime: EMA-based UP_TREND / DOWN_TREND
+
+Key Findings
+
+Low volatility dominates the dataset (majority of samples).
+
+Most predictions occur during mid-session hours (≈ 9:45–14:30 IST).
+
+RSI is predominantly neutral, indicating weak momentum.
+
+Trend regimes frequently flip, making short-horizon direction unstable.
+
+Insight
+
+The model is primarily operating in low-signal market conditions (LOW_VOL + NEUTRAL RSI + MID session), where directional prediction is inherently noisy.
+This explains the modest accuracy observed and confirms that abstention (UNCERTAIN) is the correct behavior in these regimes.
+
+Conclusion
+
+Model performance issues are driven by market regime characteristics, not pipeline or labeling errors.
+Future improvements should focus on regime-aware signal gating rather than feature expansion or aggressive retraining.

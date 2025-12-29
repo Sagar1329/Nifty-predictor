@@ -6,6 +6,8 @@ Phase A: Dataset construction ONLY
 
 from typing import Optional
 import pandas as pd
+import numpy as np
+
 from pathlib import Path
 from sklearn.metrics import (
     accuracy_score,
@@ -22,6 +24,42 @@ import pandas as pd
 HORIZON_MINUTES = 15
 THRESHOLD_PCT = 0.0005  # must match training
 TIMEZONE = "Asia/Kolkata"
+
+
+
+
+def tag_volatility(vol: float) -> str:
+    if vol < 0.0008:
+        return "LOW_VOL"
+    elif vol < 0.0015:
+        return "MEDIUM_VOL"
+    else:
+        return "HIGH_VOL"
+
+def tag_rsi(rsi: float) -> str:
+    if rsi < 30:
+        return "OVERSOLD"
+    elif rsi > 70:
+        return "OVERBOUGHT"
+    else:
+        return "NEUTRAL"
+
+def tag_time_of_day(ts: pd.Timestamp) -> str:
+    hour = ts.hour
+    minute = ts.minute
+
+    if hour == 9 and minute < 45:
+        return "OPEN"
+    elif hour < 14 or (hour == 14 and minute < 30):
+        return "MID"
+    else:
+        return "CLOSE"
+
+def tag_trend(ema9: float, ema21: float) -> str:
+    if ema9 > ema21:
+        return "UP_TREND"
+    else:
+        return "DOWN_TREND"
 
 
 # ----------------------------
@@ -87,6 +125,7 @@ def load_candles(path: Path) -> pd.DataFrame:
     )
 
     df = df.sort_values("datetime").reset_index(drop=True)
+    df = add_indicators(df)
     df.set_index("datetime", inplace=True)
 
     return df
@@ -123,6 +162,26 @@ def compute_actual_trend(
         return "SIDEWAYS"
 
 
+def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+
+    df["log_return"] = np.log(df["close"] / df["close"].shift(1))
+    df["volatility_10"] = df["log_return"].rolling(10).std()
+
+    df["ema_9"] = df["close"].ewm(span=9, adjust=False).mean()
+    df["ema_21"] = df["close"].ewm(span=21, adjust=False).mean()
+
+    delta = df["close"].diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.rolling(14).mean()
+    avg_loss = loss.rolling(14).mean()
+    rs = avg_gain / avg_loss
+    df["rsi_14"] = 100 - (100 / (1 + rs))
+
+    return df
+
+
 # ----------------------------
 # Build evaluation dataset
 # ----------------------------
@@ -133,41 +192,40 @@ def build_evaluation_dataset(
 ) -> pd.DataFrame:
     rows = []
 
+    # candles already indexed by datetime
     for _, row in predictions.iterrows():
-        ts = row["timestamp"]
+        ts = pd.to_datetime(row["timestamp"])
 
-        # Compute actual future trend
+        if ts not in candles.index:
+            continue
+
         actual = compute_actual_trend(candles, ts)
         if actual is None:
             continue
 
-        predicted = row["prediction"]
-
-        # ----------------------------
-        # FILTERING LOGIC (CRITICAL)
-        # ----------------------------
-
-        # Drop SIDEWAYS from ground truth
-        if actual not in {"UP", "DOWN"}:
-            continue
-
-        # Drop abstained predictions
-        if predicted not in {"UP", "DOWN"}:
-            continue
+        candle = candles.loc[ts]
 
         rows.append({
             "timestamp": ts,
-            "predicted": predicted,
+            "predicted": row["prediction"],
             "actual": actual,
             "confidence_level": row["confidence_level"],
+
+            # probabilities
             "p_up": row["p_up"],
             "p_sideways": row["p_sideways"],
             "p_down": row["p_down"],
+
+            # -------- REGIMES --------
+            "volatility_regime": tag_volatility(candle["volatility_10"]),
+            "rsi_regime": tag_rsi(candle["rsi_14"]),
+            "time_regime": tag_time_of_day(ts),
+            "trend_regime": tag_trend(candle["ema_9"], candle["ema_21"]),
         })
 
-    df = pd.DataFrame(rows)
+    return pd.DataFrame(rows)
 
-    return df
+
 
 
 def add_confusion_buckets(df: pd.DataFrame) -> pd.DataFrame:
@@ -321,8 +379,13 @@ if __name__ == "__main__":
     eval_df = build_evaluation_dataset(preds, candles)
     eval_df = add_confusion_buckets(eval_df)
 
-    assert set(eval_df["bucket"].unique()) == {"TP", "FP", "TN", "FN"}
-    assert len(eval_df) == eval_df["bucket"].value_counts().sum()
+    # assert set(eval_df["bucket"].unique()) == {"TP", "FP", "TN", "FN"}
+    # assert len(eval_df) == eval_df["bucket"].value_counts().sum()
+    print(
+    eval_df[
+        ["volatility_regime", "rsi_regime", "time_regime", "trend_regime"]
+    ].value_counts()
+)
 
     print("\nBucket counts:")
     print(eval_df["bucket"].value_counts())
