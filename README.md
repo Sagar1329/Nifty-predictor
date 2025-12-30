@@ -1352,3 +1352,100 @@ Conclusion
 
 Model performance issues are driven by market regime characteristics, not pipeline or labeling errors.
 Future improvements should focus on regime-aware signal gating rather than feature expansion or aggressive retraining.
+
+
+## 30/12/2025
+
+
+Regime-Based Misclassification Analysis (Replay Evaluation)
+
+  After establishing baseline replay accuracy for the 15-minute trend model, we performed a regime-level error analysis to understand where and why the model fails.
+
+  This analysis focused on False Positives (FP) and False Negatives (FN) only, as these represent costly directional mistakes.
+
+Methodology
+
+  Replay predictions were aligned with future candles (+15 minutes)
+
+  Predictions were bucketed into TP / FP / TN / FN
+
+  Each prediction was tagged with market regimes:
+
+    Volatility Regime (LOW / MEDIUM)
+
+    RSI Regime (OVERSOLD / NEUTRAL / OVERBOUGHT)
+
+    Time Regime (OPEN / MID / CLOSE)
+
+    Trend Regime (EMA-based UP / DOWN)
+
+False Positive (FP) Regimes — Model Predicts Move That Does Not Happen
+
+  Dominant FP patterns:
+
+    Low volatility dominates FP cases (~90%)
+
+    Neutral or Overbought RSI
+
+    Mid-session trading window
+
+    Predictions aligned with EMA trend (trend-following failures)
+
+Interpretation:
+
+    In compressed volatility regimes, EMA-based trend signals frequently fail
+
+    The model tends to over-predict continuation when the market is range-bound
+
+
+False Negative (FN) Regimes — Model Misses Real Move
+
+  Dominant FN patterns:
+
+    Low volatility remains dominant
+
+    Neutral or Oversold RSI
+
+    Mostly during MID session
+
+    Strong bias toward DOWN_TREND regimes
+
+Interpretation:
+
+    Directional moves occur late or abruptly after long compression
+
+    The model underreacts during low-volatility build-ups
+
+
+Key Conclusion
+
+    Directional prediction is unreliable in low-volatility regimes, especially during mid-session with neutral RSI.
+
+Errors are systematic, not random — which makes them actionable.
+
+
+Abstain Logic Justification
+
+  This analysis directly motivates explicit abstain rules:
+
+    Avoid predictions in LOW volatility regimes
+
+    Avoid trend-following signals when volatility is compressed
+
+    Prefer selective participation over constant prediction
+
+These rules improve signal quality, not raw accuracy.
+
+Status
+
+ Replay evaluation complete
+
+ Misclassification regimes identified
+
+ Abstain rules defined (design phase)
+
+ Next: encode regime-aware abstain logic into inference pipeline
+
+
+
+ 

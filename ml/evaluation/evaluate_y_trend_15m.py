@@ -396,3 +396,48 @@ if __name__ == "__main__":
     print(eval_df["actual"].value_counts())
 
     run_evaluation(predictions_path, candles_path)
+
+    fp_df = eval_df[eval_df["bucket"] == "FP"]
+    fn_df = eval_df[eval_df["bucket"] == "FN"]
+
+    print("\nFP by volatility:")
+    print(fp_df["volatility_regime"].value_counts())
+
+    print("\nFP by RSI:")
+    print(fp_df["rsi_regime"].value_counts())
+
+    print("\nFP by time of day:")
+    print(fp_df["time_regime"].value_counts())
+
+    print("\nFP by trend regime:")
+    print(fp_df["trend_regime"].value_counts())
+
+    print("\nFP combinations:")
+    print(
+        fp_df[
+            ["volatility_regime", "rsi_regime", "time_regime", "trend_regime"]
+        ].value_counts().head(10)
+    )
+
+    print("\nFN by volatility:")
+    print(fn_df["volatility_regime"].value_counts())
+
+    print("\nFN by RSI:")
+    print(fn_df["rsi_regime"].value_counts())
+
+    print("\nFN by time of day:")
+    print(fn_df["time_regime"].value_counts())
+
+    print("\nFN by trend regime:")
+    print(fn_df["trend_regime"].value_counts())
+
+    print("\nFN combinations:")
+    print(
+        fn_df[
+            ["volatility_regime", "rsi_regime", "time_regime", "trend_regime"]
+        ].value_counts().head(10)
+    )
+
+
+
+
