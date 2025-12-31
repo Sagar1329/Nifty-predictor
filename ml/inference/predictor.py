@@ -102,16 +102,26 @@ class TrendPredictor:
 
         margin = top_prob - second_prob
 
-        # Signal is always model argmax (no abstain for evaluation)
-        signal = top_label
+        # ----------------------------
+        # Basic abstain logic (v1)
+        # ----------------------------
 
-        # Confidence bands (semantic, not probability magnitude)
+        MIN_TOP_PROB = 0.45
+        MIN_MARGIN = 0.15
+
+        if top_prob < MIN_TOP_PROB or margin < MIN_MARGIN:
+            signal = "UNCERTAIN"
+        else:
+            signal = top_label
+
+        # Confidence bands (for UX, not gating)
         if margin >= 0.35:
             confidence_level = "HIGH"
         elif margin >= 0.20:
             confidence_level = "MEDIUM"
         else:
             confidence_level = "LOW"
+
 
         # ----------------------------
         # Final response
