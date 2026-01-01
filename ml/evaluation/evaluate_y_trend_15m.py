@@ -62,6 +62,38 @@ def tag_trend(ema9: float, ema21: float) -> str:
         return "DOWN_TREND"
 
 
+
+def compute_coverage_metrics(df: pd.DataFrame) -> None:
+    total = len(df)
+
+    def summarize(name, subset):
+        if subset.empty:
+            return
+
+        coverage = len(subset) / total
+        accuracy = (subset["predicted"] == subset["actual"]).mean()
+
+        print(f"\n{name}")
+        print(f"  coverage: {coverage:.2f}")
+        print(f"  accuracy: {accuracy:.2f}")
+        print(f"  trades: {len(subset)}")
+
+    summarize(
+        "HIGH only",
+        df[df["confidence_level"] == "HIGH"]
+    )
+
+    summarize(
+        "HIGH + MEDIUM",
+        df[df["confidence_level"].isin(["HIGH", "MEDIUM"])]
+    )
+
+    summarize(
+        "ALL",
+        df
+    )
+
+
 # ----------------------------
 # Load replay predictions
 # ----------------------------
@@ -437,6 +469,12 @@ if __name__ == "__main__":
             ["volatility_regime", "rsi_regime", "time_regime", "trend_regime"]
         ].value_counts().head(10)
     )
+    print("\n=== Coverage-based Evaluation ===")
+    compute_coverage_metrics(eval_df)
+
+
+
+    
 
 
 
