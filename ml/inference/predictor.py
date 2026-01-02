@@ -39,6 +39,38 @@ class TrendPredictor:
 
         rs = avg_gain / avg_loss
         return 100 - (100 / (1 + rs))
+    
+
+    @staticmethod
+    def tag_volatility(vol: float) -> str:
+        if vol < 0.0008:
+            return "LOW_VOL"
+        elif vol < 0.0015:
+            return "MEDIUM_VOL"
+        else:
+            return "HIGH_VOL"
+
+    @staticmethod
+    def tag_rsi(rsi: float) -> str:
+        if rsi < 30:
+            return "OVERSOLD"
+        elif rsi > 70:
+            return "OVERBOUGHT"
+        else:
+            return "NEUTRAL"
+
+    @staticmethod
+    def tag_time_of_day(ts) -> str:
+        hour = ts.hour
+        minute = ts.minute
+
+        if hour == 9 and minute < 45:
+            return "OPEN"
+        elif hour < 14 or (hour == 14 and minute < 30):
+            return "MID"
+        else:
+            return "CLOSE"
+
 
     # ----------------------------
     # Feature builder (MUST MATCH TRAINING)
@@ -114,6 +146,8 @@ class TrendPredictor:
         else:
             signal = top_label
 
+        
+
         # Confidence bands (for UX, not gating)
         if margin >= 0.35:
             confidence_level = "HIGH"
@@ -121,6 +155,24 @@ class TrendPredictor:
             confidence_level = "MEDIUM"
         else:
             confidence_level = "LOW"
+
+
+      
+
+        latest = candles.iloc[-1]
+
+        vol_regime = self.tag_volatility(latest["volatility_10"])
+        rsi_regime = self.tag_rsi(latest["rsi_14"])
+        time_regime = self.tag_time_of_day(latest["datetime"])
+
+        if (
+                vol_regime == "LOW_VOL"
+                and time_regime == "MID"
+                and rsi_regime == "NEUTRAL"
+            ):
+                signal = "UNCERTAIN"
+                confidence_level = "LOW"
+    
 
 
         # ----------------------------
