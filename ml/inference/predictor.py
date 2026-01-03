@@ -181,6 +181,24 @@ class TrendPredictor:
         ):
             signal = "UNCERTAIN"
             confidence_level = "LOW"
+        
+        # ----------------------------
+        # Regime-aware abstain (v2)
+        # ----------------------------
+      
+
+        # Abstain Rule v2: FN-heavy regime (downtrend noise)
+        elif (
+            vol_regime == "LOW_VOL"
+            and rsi_regime in ("NEUTRAL", "OVERSOLD")
+            and latest["ema_9"] < latest["ema_21"]  # DOWN_TREND
+        ):
+            signal = "UNCERTAIN"
+            confidence_level = "LOW"
+
+
+
+
 
         # ----------------------------
         # Final response
