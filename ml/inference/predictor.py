@@ -103,18 +103,37 @@ class TrendPredictor:
     # ----------------------------
     # Public inference API
     # ----------------------------
+    
     def predict(self, candles: pd.DataFrame) -> dict:
-        X = self._build_features(candles)
+        # ----------------------------
+        # Build features (for model + regimes)
+        # ----------------------------
+        df = candles.copy()
 
+        df["log_return"] = np.log(df["close"] / df["close"].shift(1))
+        df["candle_body"] = df["close"] - df["open"]
+        df["hl_range"] = df["high"] - df["low"]
+
+        df["ema_9"] = df["close"].ewm(span=9, adjust=False).mean()
+        df["ema_21"] = df["close"].ewm(span=21, adjust=False).mean()
+        df["rsi_14"] = self._compute_rsi(df["close"], 14)
+        df["volatility_10"] = df["log_return"].rolling(10).std()
+
+        df = df.dropna()
+
+        if len(df) < LOOKBACK:
+            raise ValueError("Not enough data after indicators")
+
+        # ----------------------------
         # Model inference
+        # ----------------------------
+        window = df.iloc[-LOOKBACK:][FEATURE_NAMES]
+        X = window.values.flatten().reshape(1, -1)
+
         pred_class = int(self.model.predict(X)[0])
         probs = self.model.predict_proba(X)[0]
 
-        label_map = {
-            0: "DOWN",
-            1: "SIDEWAYS",
-            2: "UP"
-        }
+        label_map = {0: "DOWN", 1: "SIDEWAYS", 2: "UP"}
 
         probs_dict = {
             "DOWN": float(probs[0]),
@@ -123,20 +142,13 @@ class TrendPredictor:
         }
 
         # ----------------------------
-        # Confidence logic (MARGIN-BASED)
+        # Confidence logic
         # ----------------------------
-        sorted_probs = sorted(
-            probs_dict.items(), key=lambda x: x[1], reverse=True
-        )
-
+        sorted_probs = sorted(probs_dict.items(), key=lambda x: x[1], reverse=True)
         top_label, top_prob = sorted_probs[0]
         second_label, second_prob = sorted_probs[1]
 
         margin = top_prob - second_prob
-
-        # ----------------------------
-        # Basic abstain logic (v1)
-        # ----------------------------
 
         MIN_TOP_PROB = 0.45
         MIN_MARGIN = 0.15
@@ -146,9 +158,6 @@ class TrendPredictor:
         else:
             signal = top_label
 
-        
-
-        # Confidence bands (for UX, not gating)
         if margin >= 0.35:
             confidence_level = "HIGH"
         elif margin >= 0.20:
@@ -156,24 +165,22 @@ class TrendPredictor:
         else:
             confidence_level = "LOW"
 
-
-      
-
-        latest = candles.iloc[-1]
+        # ----------------------------
+        # Regime-aware abstain (v1)
+        # ----------------------------
+        latest = df.iloc[-1]
 
         vol_regime = self.tag_volatility(latest["volatility_10"])
         rsi_regime = self.tag_rsi(latest["rsi_14"])
         time_regime = self.tag_time_of_day(latest["datetime"])
 
         if (
-                vol_regime == "LOW_VOL"
-                and time_regime == "MID"
-                and rsi_regime == "NEUTRAL"
-            ):
-                signal = "UNCERTAIN"
-                confidence_level = "LOW"
-    
-
+            vol_regime == "LOW_VOL"
+            and time_regime == "MID"
+            and rsi_regime == "NEUTRAL"
+        ):
+            signal = "UNCERTAIN"
+            confidence_level = "LOW"
 
         # ----------------------------
         # Final response
@@ -181,6 +188,6 @@ class TrendPredictor:
         return {
             "signal": signal,
             "confidence_level": confidence_level,
-            "prediction": label_map[pred_class],  # raw model output
-            "probabilities": probs_dict
+            "prediction": label_map[pred_class],
+            "probabilities": probs_dict,
         }
