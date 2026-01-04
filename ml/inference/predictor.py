@@ -29,7 +29,7 @@ class TrendPredictor:
     # Indicator helpers
     # ----------------------------
     @staticmethod
-    def _compute_rsi(series, period=14):
+    def _compute_rsi(series: pd.Series, period: int = 14) -> pd.Series:
         delta = series.diff()
         gain = delta.clip(lower=0)
         loss = -delta.clip(upper=0)
@@ -42,40 +42,38 @@ class TrendPredictor:
     
 
     @staticmethod
-    def _apply_confidence_rules(probs: dict) -> dict:
-        # Sort probabilities
-        sorted_probs = sorted(
-            probs.items(), key=lambda x: x[1], reverse=True
-        )
-
-        top_label, top_prob = sorted_probs[0]
-        second_label, second_prob = sorted_probs[1]
-
-        # Confidence thresholds
-        MIN_CONFIDENCE = 0.55
-        MIN_MARGIN = 0.10
-
-        if top_prob < MIN_CONFIDENCE or (top_prob - second_prob) < MIN_MARGIN:
-            signal = "UNCERTAIN"
+    def tag_volatility(vol: float) -> str:
+        if vol < 0.0008:
+            return "LOW_VOL"
+        elif vol < 0.0015:
+            return "MEDIUM_VOL"
         else:
-            signal = top_label
+            return "HIGH_VOL"
 
-        # Confidence bands (for UX)
-        if top_prob >= 0.65:
-            confidence_level = "HIGH"
-        elif top_prob >= 0.55:
-            confidence_level = "MEDIUM"
+    @staticmethod
+    def tag_rsi(rsi: float) -> str:
+        if rsi < 30:
+            return "OVERSOLD"
+        elif rsi > 70:
+            return "OVERBOUGHT"
         else:
-            confidence_level = "LOW"
+            return "NEUTRAL"
 
-        return {
-            "signal": signal,
-            "confidence_level": confidence_level
-        }
+    @staticmethod
+    def tag_time_of_day(ts) -> str:
+        hour = ts.hour
+        minute = ts.minute
+
+        if hour == 9 and minute < 45:
+            return "OPEN"
+        elif hour < 14 or (hour == 14 and minute < 30):
+            return "MID"
+        else:
+            return "CLOSE"
 
 
     # ----------------------------
-    # Feature builder (IDENTICAL LOGIC)
+    # Feature builder (MUST MATCH TRAINING)
     # ----------------------------
     def _build_features(self, df: pd.DataFrame) -> np.ndarray:
         if len(df) < LOOKBACK + 20:
@@ -96,29 +94,46 @@ class TrendPredictor:
 
         df = df.dropna()
 
-        # Take last LOOKBACK candles
+        # Last LOOKBACK candles
         window = df.iloc[-LOOKBACK:][FEATURE_NAMES]
 
-        # Flatten (must match training)
+        # Flatten (same shape as training)
         return window.values.flatten().reshape(1, -1)
 
     # ----------------------------
     # Public inference API
     # ----------------------------
-
+    
     def predict(self, candles: pd.DataFrame) -> dict:
-  
-        X = self._build_features(candles)
+        # ----------------------------
+        # Build features (for model + regimes)
+        # ----------------------------
+        df = candles.copy()
 
+        df["log_return"] = np.log(df["close"] / df["close"].shift(1))
+        df["candle_body"] = df["close"] - df["open"]
+        df["hl_range"] = df["high"] - df["low"]
+
+        df["ema_9"] = df["close"].ewm(span=9, adjust=False).mean()
+        df["ema_21"] = df["close"].ewm(span=21, adjust=False).mean()
+        df["rsi_14"] = self._compute_rsi(df["close"], 14)
+        df["volatility_10"] = df["log_return"].rolling(10).std()
+
+        df = df.dropna()
+
+        if len(df) < LOOKBACK:
+            raise ValueError("Not enough data after indicators")
+
+        # ----------------------------
         # Model inference
+        # ----------------------------
+        window = df.iloc[-LOOKBACK:][FEATURE_NAMES]
+        X = window.values.flatten().reshape(1, -1)
+
         pred_class = int(self.model.predict(X)[0])
         probs = self.model.predict_proba(X)[0]
 
-        label_map = {
-            0: "DOWN",
-            1: "SIDEWAYS",
-            2: "UP"
-        }
+        label_map = {0: "DOWN", 1: "SIDEWAYS", 2: "UP"}
 
         probs_dict = {
             "DOWN": float(probs[0]),
@@ -127,40 +142,58 @@ class TrendPredictor:
         }
 
         # ----------------------------
-        # Confidence & Abstain Logic
+        # Confidence logic
         # ----------------------------
-        sorted_probs = sorted(
-            probs_dict.items(), key=lambda x: x[1], reverse=True
-        )
-
+        sorted_probs = sorted(probs_dict.items(), key=lambda x: x[1], reverse=True)
         top_label, top_prob = sorted_probs[0]
         second_label, second_prob = sorted_probs[1]
 
-        MIN_CONFIDENCE = 0.55
-        MIN_MARGIN = 0.10
+        margin = top_prob - second_prob
 
-        if top_prob < MIN_CONFIDENCE or (top_prob - second_prob) < MIN_MARGIN:
+        MIN_TOP_PROB = 0.45
+        MIN_MARGIN = 0.15
+
+        if top_prob < MIN_TOP_PROB or margin < MIN_MARGIN:
             signal = "UNCERTAIN"
         else:
             signal = top_label
 
-        # Confidence levels for UX
-        if top_prob >= 0.65:
+        if margin >= 0.35:
             confidence_level = "HIGH"
-        elif top_prob >= 0.55:
+        elif margin >= 0.20:
             confidence_level = "MEDIUM"
         else:
             confidence_level = "LOW"
 
         # ----------------------------
+        # Regime-aware abstain (v1)
+        # ----------------------------
+        latest = df.iloc[-1]
+
+        vol_regime = self.tag_volatility(latest["volatility_10"])
+        rsi_regime = self.tag_rsi(latest["rsi_14"])
+        time_regime = self.tag_time_of_day(latest["datetime"])
+
+        if (
+            vol_regime == "LOW_VOL"
+            and time_regime == "MID"
+            and rsi_regime == "NEUTRAL"
+        ):
+            signal = "UNCERTAIN"
+            confidence_level = "LOW"
+        
+     
+
+
+
+
+
+        # ----------------------------
         # Final response
         # ----------------------------
-        print("Comming here")
         return {
             "signal": signal,
             "confidence_level": confidence_level,
-            "prediction": label_map[pred_class],  # raw model output (transparent)
-            "probabilities": probs_dict
+            "prediction": label_map[pred_class],
+            "probabilities": probs_dict,
         }
-
-    

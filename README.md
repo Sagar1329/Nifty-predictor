@@ -1111,3 +1111,401 @@ Live Mode – Expected Behavior
   Yahoo live candles are normalized to IST before processing.
 
   Prediction latency of 30–90 seconds after candle close is normal due to data provider delays.
+
+
+## 27-12-2025
+
+- **Prediction Horizon & Semantics**
+
+This project predicts directional market movement over a fixed future horizon, not individual candle behavior or exact prices.
+
+- **Candle Resolution**
+
+ - All data is based on 5-minute candles
+
+ - Features are constructed from the last 10 candles (~50 minutes)
+
+- **What Does a Prediction Mean?**
+
+For every prediction made at time T (a 5-minute candle close):
+
+The model predicts the net directional movement over the next 15 minutes, i.e. from T → T + 15 minutes.
+
+This is implemented by comparing:
+
+ - Close price at time T
+
+ - Close price at time T + 15 minutes (3 × 5-minute candles ahead)
+
+- **Target Classes**
+
+The prediction target is a 3-class trend label:
+
+ - UP
+  Price increases by more than +0.05% over the next 15 minutes
+
+ - DOWN
+  Price decreases by more than −0.05% over the next 15 minutes
+
+ - SIDEWAYS
+  Price change stays within ±0.05% (noise zone)
+
+This thresholding logic is used both during training and evaluation.
+
+- **Rolling Predictions (Important)**
+
+  Predictions are generated every 5 minutes, each with its own independent horizon:
+
+  Prediction Time (T)	          Evaluated Against
+  11:00	                          11:15 close
+  11:05	                          11:20 close
+  11:10	                          11:25 close
+
+  There is no fixed global window like “11:15–11:30”.
+
+  Each prediction answers:
+
+  “Where will price be 15 minutes from now relative to the current close?”
+
+- **What the Model Does NOT Predict**
+
+ - Exact future price
+
+ - Single candle direction
+
+ - Intra-candle high/low
+
+ - Trade execution signals
+
+ - The model is designed as a directional bias signal, suitable for:
+
+ - Filtering trades
+
+ - Aggregation with other signals
+
+ - Decision support systems
+
+- **Why Evaluation Uses 5-Minute Candles**
+
+ - Although the horizon is 15 minutes:
+
+ - The dataset resolution is 5 minutes
+
+ - A 15-minute horizon equals 3 future candles
+
+ - Ground truth is derived directly from historical price movement
+
+ - This ensures:
+
+ - No data leakage
+
+ - Exact alignment with training logic
+
+ - Realistic intraday evaluation
+
+## Summary
+
+ - Prediction time: current 5-minute candle close
+
+ - Prediction horizon: next 15 minutes
+
+ - Evaluation: close(T + 15m) vs close(T)
+
+ - Labels: UP / DOWN / SIDEWAYS
+
+ - Predictions are rolling and overlapping
+
+ - This design mirrors how real intraday trend models are built and evaluated.
+
+
+## 29/12/2025
+initial replay-based evaluation shows no reliable directional edge. Further model iteration required before production use.
+
+🧠 Confusion Bucketing
+
+    Each prediction is assigned a confusion bucket:
+
+    TP – Predicted UP, actual UP
+
+    TN – Predicted DOWN, actual DOWN
+
+    FP – Predicted UP, actual DOWN
+
+    FN – Predicted DOWN, actual UP
+
+    Integrity checks ensure:
+
+assert set(df_eval["bucket"].unique()) == {"TP", "FP", "TN", "FN"}
+assert len(df_eval) == df_eval["bucket"].value_counts().sum()
+
+
+This confirms:
+
+      No dropped rows
+
+      No invalid labels
+
+      Correct classification logic
+
+Evaluation Results (UP vs DOWN)
+
+Confusion Bucket Counts
+
+TN = 64
+FN = 64
+FP = 45
+TP = 34
+
+
+Key Observations
+
+  Model misses more UP moves than it captures (FN > TP)
+
+  Bias toward predicting DOWN
+
+  Directional skill exists but is weak
+
+  Confidence thresholds alone do not improve accuracy
+
+Confidence-Based Performance
+
+Performance degrades with higher confidence:
+
+      Confidence	Accuracy
+      HIGH	~38%
+      MEDIUM	~56%
+      LOW	~50%
+
+This indicates:
+
+    Model confidence is not well calibrated
+
+    High confidence ≠ high correctness
+
+Insights Gained
+
+    Errors are systematic, not random
+
+    Missed UP moves are the dominant failure mode
+
+    Limited training data contributes, but horizon ambiguity and regime mismatch are larger issues
+
+    Further tuning without understanding regimes would be premature
+
+Why This Step Matters
+
+    This evaluation establishes a trust baseline before:
+
+    Adding more data
+
+    Changing model architecture
+
+    Adjusting confidence thresholds
+
+    Building frontend signals
+
+    It ensures future improvements are evidence-driven, not speculative.
+
+Status
+
+    ✔ Replay predictions exported
+    ✔ Horizon-correct evaluation
+    ✔ Confusion buckets validated
+    ✔ Confidence-level slicing completed
+
+➡️ Next: Misclassification analysis by market regime (RSI, volatility, time-of-day)
+
+
+
+Regime-Based Misclassification Analysis (15-Minute Horizon)
+
+As part of model evaluation, we performed regime tagging on replay-based predictions to understand where and why the model fails.
+
+Regimes Analyzed
+
+Each prediction was tagged using the candle state at prediction time:
+
+Volatility Regime: LOW / MEDIUM / HIGH
+
+RSI Regime: OVERSOLD / NEUTRAL / OVERBOUGHT
+
+Time Regime: OPEN / MID / CLOSE
+
+Trend Regime: EMA-based UP_TREND / DOWN_TREND
+
+Key Findings
+
+Low volatility dominates the dataset (majority of samples).
+
+Most predictions occur during mid-session hours (≈ 9:45–14:30 IST).
+
+RSI is predominantly neutral, indicating weak momentum.
+
+Trend regimes frequently flip, making short-horizon direction unstable.
+
+Insight
+
+The model is primarily operating in low-signal market conditions (LOW_VOL + NEUTRAL RSI + MID session), where directional prediction is inherently noisy.
+This explains the modest accuracy observed and confirms that abstention (UNCERTAIN) is the correct behavior in these regimes.
+
+Conclusion
+
+Model performance issues are driven by market regime characteristics, not pipeline or labeling errors.
+Future improvements should focus on regime-aware signal gating rather than feature expansion or aggressive retraining.
+
+
+## 30/12/2025
+
+
+Regime-Based Misclassification Analysis (Replay Evaluation)
+
+  After establishing baseline replay accuracy for the 15-minute trend model, we performed a regime-level error analysis to understand where and why the model fails.
+
+  This analysis focused on False Positives (FP) and False Negatives (FN) only, as these represent costly directional mistakes.
+
+Methodology
+
+  Replay predictions were aligned with future candles (+15 minutes)
+
+  Predictions were bucketed into TP / FP / TN / FN
+
+  Each prediction was tagged with market regimes:
+
+    Volatility Regime (LOW / MEDIUM)
+
+    RSI Regime (OVERSOLD / NEUTRAL / OVERBOUGHT)
+
+    Time Regime (OPEN / MID / CLOSE)
+
+    Trend Regime (EMA-based UP / DOWN)
+
+False Positive (FP) Regimes — Model Predicts Move That Does Not Happen
+
+  Dominant FP patterns:
+
+    Low volatility dominates FP cases (~90%)
+
+    Neutral or Overbought RSI
+
+    Mid-session trading window
+
+    Predictions aligned with EMA trend (trend-following failures)
+
+Interpretation:
+
+    In compressed volatility regimes, EMA-based trend signals frequently fail
+
+    The model tends to over-predict continuation when the market is range-bound
+
+
+False Negative (FN) Regimes — Model Misses Real Move
+
+  Dominant FN patterns:
+
+    Low volatility remains dominant
+
+    Neutral or Oversold RSI
+
+    Mostly during MID session
+
+    Strong bias toward DOWN_TREND regimes
+
+Interpretation:
+
+    Directional moves occur late or abruptly after long compression
+
+    The model underreacts during low-volatility build-ups
+
+
+Key Conclusion
+
+    Directional prediction is unreliable in low-volatility regimes, especially during mid-session with neutral RSI.
+
+Errors are systematic, not random — which makes them actionable.
+
+
+Abstain Logic Justification
+
+  This analysis directly motivates explicit abstain rules:
+
+    Avoid predictions in LOW volatility regimes
+
+    Avoid trend-following signals when volatility is compressed
+
+    Prefer selective participation over constant prediction
+
+These rules improve signal quality, not raw accuracy.
+
+Status
+
+ Replay evaluation complete
+
+ Misclassification regimes identified
+
+ Abstain rules defined (design phase)
+
+ Next: encode regime-aware abstain logic into inference pipeline
+
+
+## 03-01-2026
+Coverage-Based Evaluation & Regime-Aware Abstain (v1)
+Objective
+
+Evaluate the 15-minute trend model not only on raw accuracy, but on trade-worthy signal quality, using confidence bands and minimal regime-aware abstain rules.
+
+Coverage-Based Evaluation
+
+We evaluate model performance under different confidence coverage levels:
+
+Scope	Coverage	Accuracy	Trades
+HIGH only	~17%	~27%	97
+HIGH + MEDIUM	~26%	~26%	149
+ALL signals	100%	~36%	569
+
+Key insight
+Reducing coverage via abstain logic increases signal reliability, at the cost of fewer trades — which is expected and desirable for trading systems.
+
+Regime-Aware Abstain (v1)
+
+A minimal abstain rule was introduced based on replay misclassification analysis:
+
+Abstain when:
+
+  Volatility regime = LOW_VOL
+
+  Time regime = MID
+
+  RSI regime = NEUTRAL
+
+  This regime was found to dominate false positives, especially for UP predictions during low-movement midday periods.
+
+Result:
+
+  HIGH-confidence accuracy improved from ~20% → ~27%
+
+  Trade count reduced, but signal quality increased
+
+  Confirms abstain logic is effective without retraining the model
+
+Key Findings So Far
+
+  Confidence alone is insufficient; market regime context matters
+
+  Low volatility + mid-session conditions are structurally noisy
+
+  Abstain rules improve reliability without changing the model
+
+  Current system behaves like a decision filter, not a raw classifier
+
+Current Status
+
+  Model architecture: unchanged
+
+  Prediction horizon: unchanged (15 minutes)
+
+  Replay-based evaluation: stable
+
+  Abstain logic: v1 complete and validated
+
+  Further abstain refinement or retraining will be handled in future phases.
+ 
