@@ -39,7 +39,6 @@ class TrendPredictor:
 
         rs = avg_gain / avg_loss
         return 100 - (100 / (1 + rs))
-    
 
     @staticmethod
     def tag_volatility(vol: float) -> str:
@@ -60,7 +59,7 @@ class TrendPredictor:
             return "NEUTRAL"
 
     @staticmethod
-    def tag_time_of_day(ts) -> str:
+    def tag_time_of_day(ts: pd.Timestamp) -> str:
         hour = ts.hour
         minute = ts.minute
 
@@ -71,11 +70,14 @@ class TrendPredictor:
         else:
             return "CLOSE"
 
-
     # ----------------------------
-    # Feature builder (MUST MATCH TRAINING)
+    # Feature builder (TRAINING-PARITY)
     # ----------------------------
-    def _build_features(self, df: pd.DataFrame) -> np.ndarray:
+    def _build_features(
+        self,
+        df: pd.DataFrame,
+        return_df: bool = False
+    ):
         if len(df) < LOOKBACK + 20:
             raise ValueError("Not enough candles to build features")
 
@@ -94,46 +96,41 @@ class TrendPredictor:
 
         df = df.dropna()
 
-        # Last LOOKBACK candles
-        window = df.iloc[-LOOKBACK:][FEATURE_NAMES]
+        if len(df) < LOOKBACK:
+            raise ValueError("Not enough candles after indicators")
 
-        # Flatten (same shape as training)
-        return window.values.flatten().reshape(1, -1)
+        window = df.iloc[-LOOKBACK:][FEATURE_NAMES]
+        X = window.values.flatten().reshape(1, -1)
+
+        # A1 invariant — NEVER remove
+        assert X.shape == (1, 70), f"Feature shape mismatch: {X.shape}"
+
+        if return_df:
+            return X, df
+
+        return X
 
     # ----------------------------
     # Public inference API
     # ----------------------------
-    
     def predict(self, candles: pd.DataFrame) -> dict:
-        # ----------------------------
-        # Build features (for model + regimes)
-        # ----------------------------
-        df = candles.copy()
+        # Build features + enriched df
+        X, df_feat = self._build_features(candles, return_df=True)
 
-        df["log_return"] = np.log(df["close"] / df["close"].shift(1))
-        df["candle_body"] = df["close"] - df["open"]
-        df["hl_range"] = df["high"] - df["low"]
-
-        df["ema_9"] = df["close"].ewm(span=9, adjust=False).mean()
-        df["ema_21"] = df["close"].ewm(span=21, adjust=False).mean()
-        df["rsi_14"] = self._compute_rsi(df["close"], 14)
-        df["volatility_10"] = df["log_return"].rolling(10).std()
-
-        df = df.dropna()
-
-        if len(df) < LOOKBACK:
-            raise ValueError("Not enough data after indicators")
+        # DEBUG (keep for now)
+        print("Inference feature shape:", X.shape)
 
         # ----------------------------
         # Model inference
         # ----------------------------
-        window = df.iloc[-LOOKBACK:][FEATURE_NAMES]
-        X = window.values.flatten().reshape(1, -1)
-
         pred_class = int(self.model.predict(X)[0])
         probs = self.model.predict_proba(X)[0]
 
-        label_map = {0: "DOWN", 1: "SIDEWAYS", 2: "UP"}
+        label_map = {
+            0: "DOWN",
+            1: "SIDEWAYS",
+            2: "UP"
+        }
 
         probs_dict = {
             "DOWN": float(probs[0]),
@@ -144,9 +141,12 @@ class TrendPredictor:
         # ----------------------------
         # Confidence logic
         # ----------------------------
-        sorted_probs = sorted(probs_dict.items(), key=lambda x: x[1], reverse=True)
+        sorted_probs = sorted(
+            probs_dict.items(), key=lambda x: x[1], reverse=True
+        )
+
         top_label, top_prob = sorted_probs[0]
-        second_label, second_prob = sorted_probs[1]
+        _, second_prob = sorted_probs[1]
 
         margin = top_prob - second_prob
 
@@ -168,7 +168,7 @@ class TrendPredictor:
         # ----------------------------
         # Regime-aware abstain (v1)
         # ----------------------------
-        latest = df.iloc[-1]
+        latest = df_feat.iloc[-1]
 
         vol_regime = self.tag_volatility(latest["volatility_10"])
         rsi_regime = self.tag_rsi(latest["rsi_14"])
@@ -181,12 +181,6 @@ class TrendPredictor:
         ):
             signal = "UNCERTAIN"
             confidence_level = "LOW"
-        
-     
-
-
-
-
 
         # ----------------------------
         # Final response

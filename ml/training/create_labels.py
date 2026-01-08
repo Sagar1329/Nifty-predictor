@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-INPUT_FILE = "ml/data/nifty_5m_clean.csv"
+INPUT_FILE = "ml/data/nifty_5m_12m_clean.csv"
 OUTPUT_FILE = "ml/training/labels.csv"
 
 THRESHOLD = 0.0005  # 0.05%
@@ -22,6 +22,7 @@ def create_labels():
     closes = df["close"].values
 
     labels = {
+        "datetime":[],
         "y_dir": [],
         "y_trend_5m": [],
         "y_trend_10m": [],
@@ -46,6 +47,8 @@ def create_labels():
         labels["y_trend_15m"].append(
             compute_trend(closes[i], closes[i + 3])
         )
+        labels["datetime"].append(df.loc[i, "datetime"])
+
 
     label_df = pd.DataFrame(labels)
 
