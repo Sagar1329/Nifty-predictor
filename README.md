@@ -1513,3 +1513,18 @@ Current Status
 
 ### 06/01/2025
 Checking in
+
+
+## 08/01/2025
+
+
+# **Model Retraining (v2)**
+
+## Overview
+
+This section documents the **end-to-end retraining pipeline** for the NIFTY 5-minute trend prediction system using expanded historical data.
+
+The pipeline is **sequential and deterministic.**
+Each step produces artifacts consumed by the next step.
+
+Detailed steps provided in ***Retrained model(V2)*** file
