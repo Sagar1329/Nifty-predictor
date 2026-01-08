@@ -12,6 +12,14 @@ def build_dataset():
     X = pd.read_csv(FEATURES_FILE)
     y = pd.read_csv(LABELS_FILE)
 
+    # Drop datetime if present (defensive)
+    if "datetime" in X.columns:
+        X = X.drop(columns=["datetime"])
+
+    if "datetime" in y.columns:
+        y = y.drop(columns=["datetime"])
+
+
     # Drop first LOOKBACK labels to align with features
     y = y.iloc[LOOKBACK:].reset_index(drop=True)
 

@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-INPUT_FILE = "ml/data/nifty_5m_clean.csv"
+INPUT_FILE = "ml/data/nifty_5m_12m_clean.csv"
 OUTPUT_FILE = "ml/features/features.csv"
 
 LOOKBACK = 10
@@ -20,6 +20,8 @@ def compute_rsi(series, period=14):
 
 def build_features():
     df = pd.read_csv(INPUT_FILE, parse_dates=["datetime"])
+    df = df.sort_values("datetime").reset_index(drop=True)
+
 
     # ----- Base features -----
     df["log_return"] = np.log(df["close"] / df["close"].shift(1))
@@ -47,15 +49,20 @@ def build_features():
     ]
 
     X = []
+    timestamps = []
 
     for i in range(LOOKBACK, len(df)):
         window = df.loc[i - LOOKBACK:i - 1, feature_cols].values.flatten()
         X.append(window)
+        timestamps.append(df.loc[i - 1, "datetime"])    
 
     feature_df = pd.DataFrame(X)
+    feature_df.insert(0, "datetime", timestamps)
 
     feature_df.to_csv(OUTPUT_FILE, index=False)
     print("Features built:", feature_df.shape)
+    print(f"LOOKBACK={LOOKBACK}, feature_dim={feature_df.shape[1] - 1}")
+
 
 if __name__ == "__main__":
     build_features()
