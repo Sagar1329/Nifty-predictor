@@ -84,4 +84,22 @@ class LiveController:
                   "message": "Live mode stopped"
 
             }
+        
+    def debug_buffer(self):
+        engine = self._engine  # whatever variable holds LivePollingEngine
+
+        if engine.buffer is None or engine.buffer.empty:
+            return {
+                "buffer_size": 0,
+                "message": "Buffer is empty"
+            }
+
+        return {
+            "buffer_size": len(engine.buffer),
+            "columns": engine.buffer.columns.tolist(),
+            "dtypes": engine.buffer.dtypes.astype(str).to_dict(),
+            "min_datetime": str(engine.buffer["datetime"].min()),
+            "max_datetime": str(engine.buffer["datetime"].max()),
+            "last_5_rows": engine.buffer.tail(5).to_dict(orient="records")
+        }
 

@@ -114,6 +114,26 @@ class TrendPredictor:
     # Public inference API
     # ----------------------------
     def predict(self, candles: pd.DataFrame) -> dict:
+        print("\n[DEBUG] ENTER predict()")
+        print("[DEBUG] type(candles):", type(candles))
+
+        if isinstance(candles, pd.DataFrame):
+            print("[DEBUG] candles.shape:", candles.shape)
+            print("[DEBUG] candles.columns:", candles.columns.tolist())
+            print("[DEBUG] candles.dtypes:\n", candles.dtypes)
+        else:
+            print("[DEBUG] candles value:", candles)
+            raise RuntimeError("predict() received non-DataFrame input")
+
+        if candles is None or len(candles) < LOOKBACK + 20:
+            raise ValueError(
+                f"Predict called with insufficient candles: {len(candles) if candles is not None else 0}"
+            )
+        print(
+            "[Predictor] candles type:", type(candles),
+            "len:", len(candles) if hasattr(candles, "__len__") else "NO_LEN"
+        )
+
         # Build features + enriched df
         X, df_feat = self._build_features(candles, return_df=True)
 
@@ -181,6 +201,8 @@ class TrendPredictor:
         ):
             signal = "UNCERTAIN"
             confidence_level = "LOW"
+
+        
 
         # ----------------------------
         # Final response
