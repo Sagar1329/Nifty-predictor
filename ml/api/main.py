@@ -130,7 +130,9 @@ def start_live():
 def stop_live():
     return live_controller.stop()
 
-
+@app.get("/debug/buffer")
+def stop_live():
+    return live_controller.debug_buffer()
 # ----------------------------
 # Runtime Mode
 # ----------------------------
