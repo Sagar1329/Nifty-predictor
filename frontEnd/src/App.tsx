@@ -1,5 +1,6 @@
 import { Container, Typography } from "@mui/material";
 import type { JSX } from "react";
+import LiveDashboard from "./pages/LiveDashboard";
 
 function App(): JSX.Element {
   return (
@@ -8,9 +9,8 @@ function App(): JSX.Element {
         Nifty Predictor – Live
       </Typography>
 
-      <Typography color="text.secondary">
-        Frontend initialized successfully (TypeScript).
-      </Typography>
+      
+      <LiveDashboard/>
     </Container>
   );
 }
