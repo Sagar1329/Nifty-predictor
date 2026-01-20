@@ -8,6 +8,8 @@ import {
 } from "@mui/material";
 import type { LiveState } from "../types/state";
 import type { JSX } from "react";
+import { CircularProgress } from "@mui/material";
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
 
 interface Props {
     state: LiveState;
@@ -34,6 +36,7 @@ function ProbabilityBar({
     value: number;
     color: string;
 }) {
+
     return (
         <Box sx={{ mb: 1.5 }}>
             <Box
@@ -75,6 +78,8 @@ export default function SignalCard({ state }: Props): JSX.Element {
     }
 
     const signalColor = signalColors[state.signal] ?? "#333";
+    const secondsLeft = useAutoRefresh(5000);
+
 
     return (
         <Paper
@@ -117,6 +122,24 @@ export default function SignalCard({ state }: Props): JSX.Element {
             </Box>
 
             <Divider sx={{ mb: 3 }} />
+            <Box
+                sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    mb: 2,
+                }}
+            >
+                <Typography variant="body2" color="text.secondary">
+                    Last updated:
+                </Typography>
+
+                <Typography variant="body2" fontWeight={500}>
+                    {state.timestamp
+                        ? new Date(state.timestamp).toLocaleTimeString()
+                        : "—"}
+                </Typography>
+            </Box>
+
 
             {/* Main Signal */}
             <Box sx={{ textAlign: "center", mb: 3 }}>
@@ -167,6 +190,23 @@ export default function SignalCard({ state }: Props): JSX.Element {
                     color="#c62828"
                 />
             </Box>
+
+            <Box
+                sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "start",
+                    mt: 3,
+                }}
+            >
+                <CircularProgress size={16} />
+                <Typography variant="caption" color="text.secondary">
+                    Refreshing in {secondsLeft}s
+                </Typography>
+
+               
+            </Box>
+
         </Paper>
     );
 }

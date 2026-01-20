@@ -7,9 +7,25 @@ import SignalCard from "../components/SignalCard";
 
 export default function LiveDashboard(): JSX.Element {
     const [state, setState] = useState<LiveState | null>(null);
+    const REFRESH_INTERVAL = 5000; // 5 seconds
+
 
     useEffect(() => {
-        fetchLiveState().then(setState);
+       
+            const fetchState = async () => {
+                const data = await fetchLiveState();
+                setState(data);
+            };
+
+            // Initial fetch
+            fetchState();
+
+            // Polling
+            const interval = setInterval(fetchState, REFRESH_INTERVAL);
+
+            // Cleanup
+            return () => clearInterval(interval);
+        
     }, []);
 
     if (!state) {
