@@ -26,5 +26,6 @@ export interface LiveState {
 
     probabilities?: Probabilities;
 
-    message?: string;          
+    message?: string;
+            
 }

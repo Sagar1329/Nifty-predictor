@@ -13,6 +13,7 @@ import { useAutoRefresh } from "../hooks/useAutoRefresh";
 
 interface Props {
     state: LiveState;
+    refresh_interval: number;
 }
 
 const signalColors: Record<string, string> = {
@@ -68,7 +69,7 @@ function ProbabilityBar({
     );
 }
 
-export default function SignalCard({ state }: Props): JSX.Element {
+export default function SignalCard({ state, refresh_interval }: Props): JSX.Element {
     if (!state.signal || !state.probabilities) {
         return (
             <Paper sx={{ p: 4 }}>
@@ -78,7 +79,7 @@ export default function SignalCard({ state }: Props): JSX.Element {
     }
 
     const signalColor = signalColors[state.signal] ?? "#333";
-    const secondsLeft = useAutoRefresh(5000);
+    const secondsLeft = useAutoRefresh(refresh_interval);
 
 
     return (
